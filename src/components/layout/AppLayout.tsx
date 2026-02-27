@@ -216,7 +216,10 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                         </div>
                     )}
 
-                    <div className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors" onClick={onLogout}>
+                    <button
+                        onClick={onLogout}
+                        className="w-full text-left flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors active:bg-slate-100"
+                    >
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
                             {userProfile?.full_name?.[0] || 'U'}
                         </div>
@@ -224,8 +227,8 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                             <p className="text-xs font-semibold truncate">{userProfile?.full_name}</p>
                             <p className="text-[10px] text-slate-500 truncate">{getBrandSubtitle()}</p>
                         </div>
-                        <span className="material-symbols-outlined text-red-500 text-lg hover:text-red-700" title="Sign Out">logout</span>
-                    </div>
+                        <span className="material-symbols-outlined text-red-500 text-lg group-hover:text-red-700" title="Sign Out">logout</span>
+                    </button>
                 </div>
             </aside>
 
