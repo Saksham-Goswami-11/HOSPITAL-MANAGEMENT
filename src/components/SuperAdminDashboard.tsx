@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/use-toast'
 import { GlobalSearch } from './GlobalSearch'
+import { Input, Label, Button } from '@/components/ui/basic'
+import { Loader2 } from 'lucide-react'
 
 interface SuperAdminDashboardProps {
     onView?: (id: string) => void
@@ -18,6 +22,9 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
     const [hospitals, setHospitals] = useState<any[]>([])
     const [recentHospitals, setRecentHospitals] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+
+    const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+    const [registerLoading, setRegisterLoading] = useState(false)
 
     // Fetch SaaS Metrics
     useEffect(() => {
@@ -80,6 +87,82 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
         return <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">BASIC</span>;
     }
 
+    async function handleRegisterHospital(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault()
+        setRegisterLoading(true)
+        const formData = new FormData(e.currentTarget)
+        const hospitalName = formData.get('hospital_name') as string
+        const hospitalSlug = formData.get('hospital_slug') as string
+        const adminEmail = formData.get('admin_email') as string
+        const adminPassword = formData.get('admin_password') as string
+        const adminName = formData.get('admin_name') as string
+
+        try {
+            // 1. Create temporary auth client
+            const tempSupabase = createClient(
+                import.meta.env.VITE_SUPABASE_URL,
+                import.meta.env.VITE_SUPABASE_ANON_KEY
+            )
+
+            toast({ title: 'Registration Started', description: 'Creating hospital & admin account...', duration: 3000 })
+
+            // 2. Sign up new hospital admin
+            const { data: authData, error: authError } = await tempSupabase.auth.signUp({
+                email: adminEmail,
+                password: adminPassword,
+                options: {
+                    data: { full_name: adminName, role: 'HOSPITAL_ADMIN' }
+                }
+            })
+
+            if (authError) throw authError
+            if (!authData.user) throw new Error("No user created")
+
+            // 3. Insert Hospital into DB
+            const { data: newHospital, error: hospError } = await supabase
+                .from('hospitals')
+                .insert({
+                    name: hospitalName,
+                    slug: hospitalSlug,
+                    owner_id: authData.user.id
+                })
+                .select()
+                .single()
+
+            if (hospError) throw hospError
+
+            // 4. Force Update Profile with new hospital_id & ROLE
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    hospital_id: newHospital.id,
+                    role: 'HOSPITAL_ADMIN'
+                })
+                .eq('id', authData.user.id)
+
+            if (profileError) console.error("Profile linking failed:", profileError)
+
+            toast({
+                title: '✅ Hospital Onboarded',
+                description: `Successfully registered ${hospitalName} and created admin account for ${adminName}.`,
+                className: 'bg-green-50 border-green-200 text-green-900'
+            })
+
+            setIsRegisterOpen(false)
+            fetchData() // Refresh dashboard stats
+
+        } catch (err: any) {
+            console.error('Registration failed:', err)
+            toast({
+                title: 'Registration Failed',
+                description: err.message || 'Could not onboard hospital.',
+                variant: 'destructive'
+            })
+        } finally {
+            setRegisterLoading(false)
+        }
+    }
+
     return (
         <div className="flex flex-col min-h-screen bg-white animate-in fade-in duration-500 w-full max-w-[1600px] mx-auto">
 
@@ -102,13 +185,55 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
                             }}
                         />
                     </div>
-                    <button
-                        className="bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-lg shadow-blue-500/20 active:scale-95 whitespace-nowrap"
-                        onClick={() => toast({ title: "Coming Soon", description: "Hospital registration flow." })}
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                        <span className="hidden sm:inline">Add New Hospital</span>
-                    </button>
+                    <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
+                        <DialogTrigger asChild>
+                            <button className="bg-[#2563eb] hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-lg shadow-blue-500/20 active:scale-95 whitespace-nowrap">
+                                <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                                <span className="hidden sm:inline">Add New Hospital</span>
+                            </button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px] bg-white">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold text-gray-900">Onboard New Hospital</DialogTitle>
+                                <DialogDescription className="text-gray-500">
+                                    Register a new hospital tenant and create their initial administrator account.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleRegisterHospital} className="space-y-4 pt-4">
+                                <div className="space-y-2">
+                                    <Label className="text-gray-700 font-medium">Hospital Name</Label>
+                                    <Input name="hospital_name" required placeholder="e.g. City General Hospital" className="h-11" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-gray-700 font-medium">Organization Slug (Unique URL ID)</Label>
+                                    <Input name="hospital_slug" required placeholder="e.g. city-general-ny" className="h-11 font-mono text-sm" />
+                                </div>
+                                <div className="pt-2 border-t border-gray-100">
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-4">Initial Administrator Account</h4>
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-gray-700 font-medium">Admin Full Name</Label>
+                                            <Input name="admin_name" required placeholder="John Doe" className="h-11" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-gray-700 font-medium">Temporary Password</Label>
+                                            <Input name="admin_password" type="password" required minLength={6} placeholder="••••••" className="h-11" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-gray-700 font-medium">Admin Email (Login ID)</Label>
+                                        <Input name="admin_email" type="email" required placeholder="admin@citygeneral.com" className="h-11" />
+                                    </div>
+                                </div>
+                                <DialogFooter className="pt-4">
+                                    <Button type="submit" disabled={registerLoading} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+                                        {registerLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <span className="material-symbols-outlined text-[18px] mr-2">corporate_fare</span>}
+                                        Launch Hospital Tenant
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </header>
 
