@@ -131,29 +131,16 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
             if (authError) throw authError
             if (!authData.user) throw new Error("No user created")
 
-            // 3. Insert Hospital into DB
-            const { data: newHospital, error: hospError } = await supabase
-                .from('hospitals')
-                .insert({
-                    name: hospitalName,
-                    slug: hospitalSlug,
-                    owner_id: authData.user.id
-                })
-                .select()
-                .single()
+            // 3. Call secure RPC to create hospital and bypass RLS
+            // @ts-ignore - super_admin_create_hospital is not in the generated schema types yet
+            const { data: newHospitalId, error: rpcError } = await supabase.rpc('super_admin_create_hospital', {
+                hospital_name: hospitalName,
+                hospital_slug: hospitalSlug,
+                admin_user_id: authData.user.id,
+                admin_name: adminName
+            })
 
-            if (hospError) throw hospError
-
-            // 4. Force Update Profile with new hospital_id & ROLE
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .update({
-                    hospital_id: newHospital.id,
-                    role: 'HOSPITAL_ADMIN'
-                })
-                .eq('id', authData.user.id)
-
-            if (profileError) console.error("Profile linking failed:", profileError)
+            if (rpcError) throw rpcError
 
             toast({
                 title: '✅ Hospital Onboarded',
