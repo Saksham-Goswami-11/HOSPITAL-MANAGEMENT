@@ -26,6 +26,19 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
     const [isRegisterOpen, setIsRegisterOpen] = useState(false)
     const [registerLoading, setRegisterLoading] = useState(false)
 
+    // Auto-generate Slug State
+    const [hospitalName, setHospitalName] = useState("")
+    const [hospitalSlug, setHospitalSlug] = useState("")
+
+    // Generate slug from name automatically when name changes
+    useEffect(() => {
+        const generatedSlug = hospitalName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-') // replace non-alphanumeric with dashes
+            .replace(/^-+|-+$/g, '')     // trim leading/trailing dashes
+        setHospitalSlug(generatedSlug)
+    }, [hospitalName])
+
     // Fetch SaaS Metrics
     useEffect(() => {
         fetchData()
@@ -202,11 +215,26 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
                             <form onSubmit={handleRegisterHospital} className="space-y-4 pt-4">
                                 <div className="space-y-2">
                                     <Label className="text-gray-700 font-medium">Hospital Name</Label>
-                                    <Input name="hospital_name" required placeholder="e.g. City General Hospital" className="h-11" />
+                                    <Input
+                                        name="hospital_name"
+                                        required
+                                        placeholder="e.g. City General Hospital"
+                                        className="h-11"
+                                        value={hospitalName}
+                                        onChange={(e) => setHospitalName(e.target.value)}
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-gray-700 font-medium">Organization Slug (Unique URL ID)</Label>
-                                    <Input name="hospital_slug" required placeholder="e.g. city-general-ny" className="h-11 font-mono text-sm" />
+                                    <Input
+                                        name="hospital_slug"
+                                        required
+                                        placeholder="e.g. city-general-ny"
+                                        className="h-11 font-mono text-sm"
+                                        value={hospitalSlug}
+                                        onChange={(e) => setHospitalSlug(e.target.value)}
+                                    />
+                                    <p className="text-[10px] text-gray-500">This URL-friendly ID is automatically generated but can be customized.</p>
                                 </div>
                                 <div className="pt-2 border-t border-gray-100">
                                     <h4 className="text-sm font-semibold text-gray-900 mb-4">Initial Administrator Account</h4>
