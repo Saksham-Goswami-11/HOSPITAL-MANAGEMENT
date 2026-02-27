@@ -17,7 +17,7 @@ import { POSDashboard } from '@/components/POSDashboard';
 import { ClinicAttendance } from '@/components/ClinicAttendance';
 import { EarningsDashboard } from '@/components/EarningsDashboard';
 import { SettingsDashboard } from '@/components/SettingsDashboard';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import LandingPage from '@/pages/LandingPage';
 
 import { Loader2, Shield } from 'lucide-react'
@@ -30,6 +30,7 @@ type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 
 
 function AppContent() {
     const { session, profile, loading } = useHospital();
+    const navigate = useNavigate();
     const [view, setView] = useState<View>(() => {
         const savedView = localStorage.getItem('lastActiveView') as View
         return savedView || 'selection'
@@ -98,8 +99,14 @@ function AppContent() {
     };
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
-        window.location.reload();
+        try {
+            await supabase.auth.signOut();
+        } finally {
+            localStorage.removeItem('lastActiveView');
+            navigate('/');
+            // Force a slight delay before reload to ensure router catches the state change if needed
+            setTimeout(() => window.location.reload(), 100);
+        }
     }
 
     // Auth checks are now handled by AppRouter, so we don't need them here.
