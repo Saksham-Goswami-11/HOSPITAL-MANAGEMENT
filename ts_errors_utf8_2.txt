@@ -1,0 +1,9 @@
+﻿src/components/StaffPortal.tsx(1,3): error TS1443: Module declaration names may only use ' or " quoted strings.
+src/components/StaffPortal.tsx(300,70): error TS1005: ';' expected.
+src/components/StaffPortal.tsx(300,77): error TS1005: ';' expected.
+src/components/StaffPortal.tsx(300,92): error TS1005: ';' expected.
+src/components/StaffPortal.tsx(300,102): error TS1351: An identifier or keyword cannot immediately follow a numeric literal.
+src/components/StaffPortal.tsx(300,106): error TS1005: ';' expected.
+src/components/StaffPortal.tsx(300,118): error TS1005: ';' expected.
+src/components/StaffPortal.tsx(300,128): error TS1434: Unexpected keyword or identifier.
+src/components/StaffPortal.tsx(465,1): error TS1160: Unterminated template literal.

@@ -1,0 +1,14 @@
+src/components/ClinicAdminDashboard.tsx(2,10): error TS6133: 'ArrowLeft' is declared but its value is never read.
+src/components/ClinicAdminDashboard.tsx(2,30): error TS6133: 'Receipt' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,10): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,33): error TS6133: 'Edit' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,39): error TS6133: 'RefreshCcw' is declared but its value is never read.
+src/components/layout/AppLayout.tsx(2,1): error TS6192: All imports in import declaration are unused.
+src/components/POSDashboard.tsx(2,10): error TS6133: 'Card' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,16): error TS6133: 'CardContent' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,29): error TS6133: 'CardHeader' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,41): error TS6133: 'CardTitle' is declared but its value is never read.
+src/components/StaffPortal.tsx(5,10): error TS6133: 'Search' is declared but its value is never read.
+src/components/StaffPortal.tsx(5,18): error TS6133: 'Filter' is declared but its value is never read.
+src/components/StaffPortal.tsx(5,26): error TS6133: 'MoreVertical' is declared but its value is never read.
+src/components/StaffPortal.tsx(5,40): error TS6133: 'Loader2' is declared but its value is never read.

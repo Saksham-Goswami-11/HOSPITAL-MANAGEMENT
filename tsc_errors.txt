@@ -1,0 +1,5 @@
+src/components/landing/AIInsightsSection.tsx(3,23): error TS6133: 'Type' is declared but its value is never read.
+src/components/landing/Navbar.tsx(4,19): error TS6133: 'ChevronDown' is declared but its value is never read.
+src/components/SettingsDashboard.tsx(3,10): error TS6133: 'Card' is declared but its value is never read.
+src/components/SettingsDashboard.tsx(3,16): error TS6133: 'CardContent' is declared but its value is never read.
+src/pages/landing/HospitalCommandCenter.tsx(2,28): error TS6133: 'Network' is declared but its value is never read.

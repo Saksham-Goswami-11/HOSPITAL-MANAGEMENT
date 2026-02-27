@@ -1,0 +1,38 @@
+﻿src/components/ClinicAdminDashboard.tsx(2,10): error TS6133: 'ArrowLeft' is declared but its value is never read.
+src/components/ClinicAdminDashboard.tsx(2,30): error TS6133: 'Receipt' is declared but its value is never read.
+src/components/ClinicAdminDashboard.tsx(6,1): error TS6133: 'Button' is declared but its value is never read.
+src/components/HospitalsRegistry.tsx(187,42): error TS6133: 'fetchLogs' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(4,33): error TS6133: 'DialogHeader' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,10): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,33): error TS6133: 'Edit' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,39): error TS6133: 'RefreshCcw' is declared but its value is never read.
+src/components/layout/AppLayout.tsx(2,1): error TS6192: All imports in import declaration are unused.
+src/components/layout/AppLayout.tsx(3,1): error TS6133: 'Button' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,10): error TS6133: 'Card' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,16): error TS6133: 'CardContent' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,29): error TS6133: 'CardHeader' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,41): error TS6133: 'CardTitle' is declared but its value is never read.
+src/components/POSDashboard.tsx(6,33): error TS6133: 'DialogHeader' is declared but its value is never read.
+src/components/StaffPortal.tsx(2,1): error TS6192: All imports in import declaration are unused.
+src/components/StaffPortal.tsx(3,32): error TS2305: Module '"@/components/ui/basic"' has no exported member 'Select'.
+src/components/StaffPortal.tsx(3,32): error TS6133: 'Select' is declared but its value is never read.
+src/components/StaffPortal.tsx(3,40): error TS2305: Module '"@/components/ui/basic"' has no exported member 'SelectContent'.
+src/components/StaffPortal.tsx(3,40): error TS6133: 'SelectContent' is declared but its value is never read.
+src/components/StaffPortal.tsx(3,55): error TS2305: Module '"@/components/ui/basic"' has no exported member 'SelectItem'.
+src/components/StaffPortal.tsx(3,55): error TS6133: 'SelectItem' is declared but its value is never read.
+src/components/StaffPortal.tsx(3,67): error TS2305: Module '"@/components/ui/basic"' has no exported member 'SelectTrigger'.
+src/components/StaffPortal.tsx(3,67): error TS6133: 'SelectTrigger' is declared but its value is never read.
+src/components/StaffPortal.tsx(3,82): error TS2305: Module '"@/components/ui/basic"' has no exported member 'SelectValue'.
+src/components/StaffPortal.tsx(3,82): error TS6133: 'SelectValue' is declared but its value is never read.
+src/components/StaffPortal.tsx(4,10): error TS6133: 'Users' is declared but its value is never read.
+src/components/StaffPortal.tsx(4,23): error TS6133: 'Edit' is declared but its value is never read.
+src/components/StaffPortal.tsx(4,29): error TS6133: 'Shield' is declared but its value is never read.
+src/components/StaffPortal.tsx(4,37): error TS6133: 'Save' is declared but its value is never read.
+src/components/StaffPortal.tsx(4,58): error TS6133: 'ShieldCheck' is declared but its value is never read.
+src/components/StaffPortal.tsx(6,60): error TS6133: 'DialogTrigger' is declared but its value is never read.
+src/components/StaffPortal.tsx(6,75): error TS6133: 'DialogFooter' is declared but its value is never read.
+src/components/StaffPortal.tsx(6,89): error TS6133: 'DialogDescription' is declared but its value is never read.
+src/components/StaffPortal.tsx(7,1): error TS6133: 'Checkbox' is declared but its value is never read.
+src/components/StaffPortal.tsx(24,12): error TS6133: 'grantLoginAccess' is declared but its value is never read.
+src/components/StaffPortal.tsx(24,30): error TS6133: 'setGrantLoginAccess' is declared but its value is never read.
+src/components/SuperAdminDashboard.tsx(309,54): error TS6133: 'idx' is declared but its value is never read.

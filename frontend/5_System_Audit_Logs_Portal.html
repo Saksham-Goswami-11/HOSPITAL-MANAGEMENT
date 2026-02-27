@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Enterprise System Audit Logs</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary-color: #0F172A;
+            --accent-blue: #3B82F6;
+            --accent-red: #EF4444;
+            --accent-green: #10B981;
+            --accent-amber: #F59E0B;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F1F5F9;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+        }::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-slate-900 min-h-screen flex flex-col">
+<header class="sticky top-0 z-50 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-[var(--primary-color)] rounded-md flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-2xl">shield_with_heart</span>
+</div>
+<div>
+<h1 class="text-lg font-bold text-slate-900 tracking-tight">Enterprise System Audit Logs</h1>
+<p class="text-xs text-slate-500 font-medium">SaaS Security Infrastructure</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full border border-slate-200">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-xs font-semibold text-slate-700 uppercase tracking-tight">Live View</span>
+<button class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-300">
+<span class="translate-x-4 pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+</button>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-md hover:bg-slate-50 transition-all shadow-sm">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Export to CSV</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col overflow-y-auto">
+<div class="p-6 space-y-8">
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Filters</h3>
+<div class="space-y-6">
+<div class="space-y-2">
+<label class="text-xs font-semibold text-slate-700">Date Range</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">calendar_today</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-400 outline-none" readonly="" type="text" value="Last 24 Hours"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-semibold text-slate-700">Severity</label>
+<div class="space-y-2">
+<label class="flex items-center gap-3 cursor-pointer">
+<input checked="" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" type="checkbox"/>
+<span class="text-sm text-slate-600">Critical</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer">
+<input checked="" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" type="checkbox"/>
+<span class="text-sm text-slate-600">Warning</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer">
+<input checked="" class="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" type="checkbox"/>
+<span class="text-sm text-slate-600">Information</span>
+</label>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-semibold text-slate-700">Hospital ID</label>
+<select class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-400 outline-none appearance-none">
+<option>All Facilities</option>
+<option>HOSP-9920 (North)</option>
+<option>HOSP-4421 (South)</option>
+<option>HOSP-1002 (East)</option>
+</select>
+</div>
+</div>
+</div>
+<div class="pt-6 border-t border-slate-100">
+<button class="w-full py-2 bg-slate-900 text-white text-sm font-semibold rounded-md hover:bg-slate-800 transition-colors">
+                        Apply Filters
+                    </button>
+<button class="w-full py-2 mt-2 text-slate-500 text-sm font-medium hover:text-slate-900 transition-colors">
+                        Clear All
+                    </button>
+</div>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto bg-slate-50 p-6">
+<div class="max-w-6xl mx-auto space-y-2">
+<div class="flex flex-col sm:flex-row gap-4 mb-6">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm shadow-sm focus:ring-2 focus:ring-slate-200 outline-none transition-all" placeholder="Search event, user, or IP address..." type="text"/>
+</div>
+<button class="lg:hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-600">
+<span class="material-symbols-outlined">filter_list</span>
+                        Filters
+                    </button>
+</div>
+<div class="hidden md:grid md:grid-cols-[60px_1fr_200px_150px_180px] gap-4 px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200">
+<div>Type</div>
+<div>Event Details</div>
+<div>Entity / Hospital ID</div>
+<div>Severity</div>
+<div>Timestamp</div>
+</div>
+<div class="space-y-1">
+<div class="bg-white hover:bg-slate-50 border border-slate-200 transition-colors group">
+<div class="grid grid-cols-1 md:grid-cols-[60px_1fr_200px_150px_180px] items-center gap-4 px-6 py-4">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined text-red-500 bg-red-50 p-2 rounded-lg">security</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900">FAILED_LOGIN_ATTEMPT</h4>
+<p class="text-xs text-slate-500 mt-0.5">Multiple login failures detected from IP <span class="font-mono text-slate-700">192.168.1.104</span>. Potential brute force.</p>
+</div>
+<div class="hidden md:block">
+<span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">SYS_AUTH_PROD</span>
+</div>
+<div class="hidden md:flex">
+<span class="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded uppercase border border-red-200">Critical</span>
+</div>
+<div class="text-[11px] font-medium text-slate-500 tabular-nums">
+                                Jan 31, 2026 • 14:22:10.04
+                            </div>
+</div>
+</div>
+<div class="bg-white hover:bg-slate-50 border border-slate-200 transition-colors">
+<div class="grid grid-cols-1 md:grid-cols-[60px_1fr_200px_150px_180px] items-center gap-4 px-6 py-4">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined text-blue-500 bg-blue-50 p-2 rounded-lg">database</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900">DB_BACKUP_COMPLETED</h4>
+<p class="text-xs text-slate-500 mt-0.5">Automated nightly snapshot of 'Hospital_Master_DB' completed. (Size: 4.2GB)</p>
+</div>
+<div class="hidden md:block">
+<span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">HOSP-9920</span>
+</div>
+<div class="hidden md:flex">
+<span class="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase border border-slate-200">Info</span>
+</div>
+<div class="text-[11px] font-medium text-slate-500 tabular-nums">
+                                Jan 31, 2026 • 03:00:00.00
+                            </div>
+</div>
+</div>
+<div class="bg-white hover:bg-slate-50 border border-slate-200 transition-colors">
+<div class="grid grid-cols-1 md:grid-cols-[60px_1fr_200px_150px_180px] items-center gap-4 px-6 py-4">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined text-amber-500 bg-amber-50 p-2 rounded-lg">emergency</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900">RESOURCE_QUOTA_EXCEEDED</h4>
+<p class="text-xs text-slate-500 mt-0.5">Storage threshold reached (90%) for Tenant <span class="font-medium text-slate-800">Mayo_Clinic_East</span>.</p>
+</div>
+<div class="hidden md:block">
+<span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">HOSP-1002</span>
+</div>
+<div class="hidden md:flex">
+<span class="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase border border-amber-200">Warning</span>
+</div>
+<div class="text-[11px] font-medium text-slate-500 tabular-nums">
+                                Jan 31, 2026 • 12:45:33.12
+                            </div>
+</div>
+</div>
+<div class="bg-white hover:bg-slate-50 border border-slate-200 transition-colors">
+<div class="grid grid-cols-1 md:grid-cols-[60px_1fr_200px_150px_180px] items-center gap-4 px-6 py-4">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined text-emerald-500 bg-emerald-50 p-2 rounded-lg">person_add</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900">USER_ONBOARDED</h4>
+<p class="text-xs text-slate-500 mt-0.5">New practitioner account created for <span class="font-medium text-slate-800">Dr. Sarah Chen</span>.</p>
+</div>
+<div class="hidden md:block">
+<span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">HOSP-4421</span>
+</div>
+<div class="hidden md:flex">
+<span class="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase border border-emerald-200">Success</span>
+</div>
+<div class="text-[11px] font-medium text-slate-500 tabular-nums">
+                                Jan 31, 2026 • 10:15:20.45
+                            </div>
+</div>
+</div>
+<div class="bg-white hover:bg-slate-50 border border-slate-200 transition-colors">
+<div class="grid grid-cols-1 md:grid-cols-[60px_1fr_200px_150px_180px] items-center gap-4 px-6 py-4">
+<div class="flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-600 bg-slate-100 p-2 rounded-lg">settings</span>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900">CONFIG_UPDATED</h4>
+<p class="text-xs text-slate-500 mt-0.5">Global session timeout increased to 60 minutes by Super Admin.</p>
+</div>
+<div class="hidden md:block">
+<span class="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">GLOBAL_SYS</span>
+</div>
+<div class="hidden md:flex">
+<span class="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded uppercase border border-slate-200">Info</span>
+</div>
+<div class="text-[11px] font-medium text-slate-500 tabular-nums">
+                                Jan 30, 2026 • 18:55:12.89
+                            </div>
+</div>
+</div>
+</div>
+<div class="pt-8 pb-12 flex justify-center">
+<button class="px-8 py-3 bg-white border border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
+                        Load Previous 100 Logs
+                    </button>
+</div>
+</div>
+</main>
+</div>
+<nav class="lg:hidden sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-8 py-3 flex justify-between items-center z-50">
+<div class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold">Monitor</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-slate-900 border-b-2 border-slate-900 pb-1 -mb-[13px]">
+<span class="material-symbols-outlined">format_list_bulleted</span>
+<span class="text-[10px] font-bold">Audit</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">corporate_fare</span>
+<span class="text-[10px] font-bold">Tenants</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-slate-400">
+<span class="material-symbols-outlined">settings_suggest</span>
+<span class="text-[10px] font-bold">Admin</span>
+</div>
+</nav>
+
+</body></html>

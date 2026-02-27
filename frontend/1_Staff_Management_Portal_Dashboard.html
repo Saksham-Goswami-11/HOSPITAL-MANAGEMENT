@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Staff Management Desktop Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary: #2563eb;
+            --sidebar-bg: #f8fafc;
+            --border-color: #e2e8f0;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#2563eb",
+                        sidebar: "#f8fafc",
+                    },
+                    borderRadius: {
+                        DEFAULT: "8px",
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-slate-900 min-h-screen flex overflow-hidden">
+<aside class="w-64 bg-sidebar border-r border-slate-200 flex flex-col shrink-0 h-screen">
+<div class="p-6 border-b border-slate-200">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-xl">local_hospital</span>
+</div>
+<span class="font-bold text-lg tracking-tight">MedAdmin</span>
+</div>
+</div>
+<nav class="flex-1 p-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200/50 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-primary/10 text-primary rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="text-sm font-semibold">Staff Management</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200/50 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="text-sm font-medium">Payroll Portal</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200/50 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">event_note</span>
+<span class="text-sm font-medium">Schedules</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:bg-slate-200/50 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+<div class="p-4 border-t border-slate-200">
+<div class="flex items-center gap-3 px-3 py-2">
+<img alt="Admin" class="w-8 h-8 rounded-full border border-slate-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAuHEwpUfptmLYfCnYoHPLpuLcXFW-eFmeilGvY4R7kPX8WXhqCsq3UxGPG8fz_xnRX27GTf7LlnuqcqMeXOXxUH2WiEEohGSMxXfdoFH2ogDy-P868VNpO4yMMJB4tCA4uH9i4IS1rB2Lxb0-ayWrbr5ZXn9qQSHWlw2HIG84ndF47TK3W214_1oa4TMcdGq3B36NNQmuRrAjJsu2icDoS2r7Tyk1s8iPtjXr-o_F3i7P9DUzODWmD6dmkdv2gUD-JCxX8cJRlCGCA"/>
+<div class="overflow-hidden">
+<p class="text-xs font-semibold truncate">Admin User</p>
+<p class="text-[10px] text-slate-500 truncate">Hospital Director</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 overflow-y-auto bg-white">
+<header class="h-16 border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 bg-white/80 backdrop-blur-md z-10">
+<div>
+<h1 class="text-xl font-bold text-slate-800">Staff Management</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<button class="p-2 text-slate-400 hover:text-slate-600">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+</div>
+<button class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+                    New Staff Member
+                </button>
+</div>
+</header>
+<div class="p-8 max-w-[1600px] mx-auto">
+<div class="grid grid-cols-3 gap-6 mb-8">
+<div class="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center gap-5">
+<div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">groups</span>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-500">Total Staff</p>
+<p class="text-2xl font-bold">1,248</p>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center gap-5 border-l-4 border-l-green-500">
+<div class="w-12 h-12 bg-green-50 text-green-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">person_check</span>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-500">On-Duty Now</p>
+<p class="text-2xl font-bold">842</p>
+</div>
+</div>
+<div class="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center gap-5 border-l-4 border-l-orange-500">
+<div class="w-12 h-12 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">pending_actions</span>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-500">Pending Payroll</p>
+<p class="text-2xl font-bold">18</p>
+</div>
+</div>
+</div>
+<div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex flex-wrap gap-4 items-center">
+<div class="flex-1 relative min-w-[300px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full bg-white border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-primary focus:border-primary" placeholder="Search staff by name, ID or department..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative">
+<select class="appearance-none bg-white border-slate-200 rounded-lg pl-4 pr-10 py-2 text-sm font-medium focus:ring-primary focus:border-primary">
+<option>All Departments</option>
+<option>Cardiology</option>
+<option>Emergency</option>
+<option>Diagnostics</option>
+<option>Administration</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-sm">expand_more</span>
+</div>
+<div class="relative">
+<select class="appearance-none bg-white border-slate-200 rounded-lg pl-4 pr-10 py-2 text-sm font-medium focus:ring-primary focus:border-primary">
+<option>Shift Status</option>
+<option>Morning</option>
+<option>Evening</option>
+<option>Night</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-sm">expand_more</span>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/50 rounded-lg">
+<span class="material-symbols-outlined text-lg">tune</span>
+                        More Filters
+                    </button>
+</div>
+</div>
+<div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 border-b border-slate-200">
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Staff Name</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Department</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Current Status</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Salary</th>
+<th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<img alt="Sonia" class="w-10 h-10 rounded-full border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkenxC4mJSkuEh_GAG7C7oN5q9dfN56Rf2oRzxLK9KO9RKGHCKOTIfmB0C1wjnCp8V2PBhylGt-RSOh6Mqle0qtgpD8deysn6n6kAZ4zfpL25RcatCW5qPLlldVKU0AeIWKp1U-inlt4aDCLQ3GS_NFNENoeVsKOizJMCyKJkgTU4GBPeJYQaf4aWENb5xq6c96nONXUS8W9GLv8yo1BMM9v6F9gHQv7O8ultg5snhV-wMm5PrKc0QeYVwm9oAWzqurY3mCwboFs62"/>
+<div>
+<p class="text-sm font-bold text-slate-900">Dr. Sonia V.</p>
+<p class="text-xs text-slate-500">ID: MED-402 • Senior Specialist</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">Cardiology</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-700 uppercase">On Shift</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">₹1,45,000</td>
+<td class="px-6 py-4 whitespace-nowrap text-right">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<img alt="Rahul" class="w-10 h-10 rounded-full border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmmaUtJVkDFCKldtYwRFIavYOv-5OD7039D6VGnrFxRMF4blRe52qY2iZEfs3HyVkW7dujljR_5PKTZgnV18XR3BXj4ZC8v6wJOBsO57mCNUj97t0Zwu3LOX0g4tJfaxdLCgZ807XMCU1m0OhH62BgS8VzQJyVISLR3BOxJBxhfkb9N4RzrSaOaNyQmNnaVv5mxjxwxKBIZguKRO99dAdjOIKfdhbpZpJu7pEhJQ9iKOD_VArrNW0ijytY_rTXeP_eMq3prjgPEuhc"/>
+<div>
+<p class="text-sm font-bold text-slate-900">Rahul Kapoor</p>
+<p class="text-xs text-slate-500">ID: NUR-112 • Head Nurse</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">Emergency</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 uppercase">Off Duty</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">₹65,000</td>
+<td class="px-6 py-4 whitespace-nowrap text-right">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<img alt="Ananya" class="w-10 h-10 rounded-full border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9P2MuEeBsoQYY332sjRv5hvZXimXzWaGLEyRZ2RaHDgrOm1U2vaBiE2WyvhF7Wqri9RBUqqQbpedwmCS2-NihGKM6gmOtZLc9_-8hAlurbKL8OVK4AHJZ9LdDbjGo_FBq5dJHqJSVAmwBvxdJP3hSzATcHDmh1If25UYGUX9RYhr79-9Z4U5tTCIY1sRwS4gE9mqghRSm2aYvJupzm2tJc4MJBY3pKk_VELfkfn-WI5Wv8kvaYpQR0oRo4U3n_VbrlXtyAl8vob4D"/>
+<div>
+<p class="text-sm font-bold text-slate-900">Ananya Singh</p>
+<p class="text-xs text-slate-500">ID: LAB-092 • Lab Technician</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">Diagnostics</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-700 uppercase">On Break</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">₹42,500</td>
+<td class="px-6 py-4 whitespace-nowrap text-right">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<img alt="Vikram" class="w-10 h-10 rounded-full border border-slate-100" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArNfkUNrNgkF_d936J7UgE7Txo2kA9ZCuRylkoiK8CPUbRDShJ2rauhPOnEBf0cjrCYShVM6gr95vsyenTRxqVy6BSv_b5XYispcVChXSWD8WTsbRZYr0CYvBEzmE47nil9aWZ8p1mQu8fTmXN2nIn5kbfnsDxfpNDecNrQRnlb3yWc2DmsgQXbKgAb8RDeLmQPsX6fvWZfZ-XMg_N-A0hyY49S187ub1-pxneNzi8e9A4Wcqwp1wj-MPTpoq37Rqnvivj0FYyCVj5"/>
+<div>
+<p class="text-sm font-bold text-slate-900">Vikram Mehra</p>
+<p class="text-xs text-slate-500">ID: ADM-201 • Supervisor</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">Administration</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-700 uppercase">On Shift</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">₹55,000</td>
+<td class="px-6 py-4 whitespace-nowrap text-right">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-slate-600 transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
+<p class="text-sm text-slate-500 font-medium">Showing 1 to 4 of 1,248 staff members</p>
+<div class="flex gap-2">
+<button class="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-md hover:bg-white transition-colors disabled:opacity-50" disabled="">Previous</button>
+<button class="px-3 py-1.5 text-xs font-bold text-white bg-primary rounded-md">1</button>
+<button class="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-md hover:bg-white transition-colors">2</button>
+<button class="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-md hover:bg-white transition-colors">3</button>
+<button class="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-md hover:bg-white transition-colors">Next</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+</body>
+</html>

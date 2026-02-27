@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Clinic Operations Desktop Light Mode Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<style type="text/tailwindcss">
+        :root {
+            --sidebar-bg: #ffffff;
+            --sidebar-border: #e2e8f0;
+            --main-bg: #f8fafc;
+            --primary: #2563eb;
+            --nav-icon: #475569;
+            --nav-active-bg: #f1f5f9;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--main-bg);
+        }
+        .sidebar-active {
+            background-color: var(--nav-active-bg);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex text-slate-900 overflow-hidden">
+<aside class="w-64 bg-[var(--sidebar-bg)] border-r border-[var(--sidebar-border)] flex flex-col shrink-0">
+<div class="p-6 flex items-center gap-3">
+<div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-xl">health_and_safety</span>
+</div>
+<span class="font-bold text-lg tracking-tight uppercase text-slate-900">MedCore OS</span>
+</div>
+<nav class="flex-1 mt-4 px-3 space-y-1">
+<a class="sidebar-active flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors" href="#">
+<span class="material-symbols-outlined text-blue-600">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[var(--nav-icon)]">badge</span>
+                Staff
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[var(--nav-icon)]">payments</span>
+                Billing
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[var(--nav-icon)]">inventory_2</span>
+                Inventory
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors" href="#">
+<span class="material-symbols-outlined text-[var(--nav-icon)]">analytics</span>
+                Reports
+            </a>
+</nav>
+<div class="p-4 border-t border-slate-100">
+<div class="flex items-center gap-3 px-2">
+<div class="w-8 h-8 rounded-full bg-slate-100 overflow-hidden">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMn4CqTosZgZsAqLjfAa2BknlfIhiDtNVo6ckLC1tyuKwPAD_DFt3TO3ukd8uIJn8BnNMxYVpHTrME-ewt7iAFzYD_HhOiUYFv3ECEEB7bGEEeubIgwR5APgch9Jhm8EyF51nYaVxS4P1JE4FX5aFl7P8E452vH32RiVz4QRG7ffXC7wzBJsYBFGvuzvU8510dwm33zLdyF0vctpNEKOJsiMB4Ojnmuvq4bX8jXCG0kcNM4WWuankIYbsHDTYL96g60jC058jkbj6o"/>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-semibold truncate text-slate-900">Dr. Sonia Malhotra</p>
+<p class="text-[10px] text-slate-500 truncate">Administrator</p>
+</div>
+<button class="p-1 hover:bg-slate-100 rounded">
+<span class="material-symbols-outlined text-slate-400 text-sm">logout</span>
+</button>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col overflow-hidden">
+<header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all" placeholder="Search patients, staff, or inventory..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-green-100">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    Live System
+                </div>
+<button class="relative p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto p-8 space-y-8 bg-[var(--main-bg)]">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md">+14.2%</span>
+</div>
+<p class="text-slate-500 text-sm font-medium">Daily Revenue</p>
+<h3 class="text-3xl font-bold mt-1 text-slate-900">$12,450.00</h3>
+</div>
+<div class="mt-6 h-12 w-full flex items-end gap-1">
+<div class="flex-1 bg-blue-100 rounded-t h-[40%]"></div>
+<div class="flex-1 bg-blue-100 rounded-t h-[60%]"></div>
+<div class="flex-1 bg-blue-100 rounded-t h-[50%]"></div>
+<div class="flex-1 bg-blue-200 rounded-t h-[80%]"></div>
+<div class="flex-1 bg-blue-100 rounded-t h-[45%]"></div>
+<div class="flex-1 bg-blue-500 rounded-t h-[100%]"></div>
+<div class="flex-1 bg-blue-300 rounded-t h-[70%]"></div>
+</div>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-slate-50 text-slate-600 rounded-xl">
+<span class="material-symbols-outlined">groups</span>
+</div>
+<span class="text-xs font-medium text-slate-400">Current Shift</span>
+</div>
+<p class="text-slate-500 text-sm font-medium">Active Staff</p>
+<h3 class="text-3xl font-bold mt-1 text-slate-900">28 <span class="text-lg font-medium text-slate-400">/ 32</span></h3>
+</div>
+<div class="mt-6 flex -space-x-2 overflow-hidden">
+<img alt="" class="inline-block h-8 w-8 rounded-full ring-2 ring-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgFCXpaEIvLzG51VbQi5Q6_GJxF3fkLCpofiZritv80KJwuBQg8VeUyDccgr2APiDaAjZoV39PLhgER6yzWbIkM-354K3DIdodsFImP8nqKHEU0bFtAuI8wQ6NW3RMODO39gkxYV6gXv0rRmcw_PjVPdewQGYd68Gyy6YLMTpWDEjvLHO3fjckgNcwwcsYJWqfJOjdgmBW5Yja5NT75vaFmBA2oIZ3xpRfbQwU-yIS5zJu4P_uBhPYmHyo7bp6rB2WiZ7PQinFsm01"/>
+<img alt="" class="inline-block h-8 w-8 rounded-full ring-2 ring-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRvCXOc6MHobMQ9XpIcyyziFRrv8qfR6dS9NWn3NZetecNNgQ1ixH8fumALZULpbKVV4qcE8rn23yqG-f6UbZQZ_o1D1kK9bgMVWz_oOARqicLorGl3UAGYh8c3eEDars3n0j8-cEBHw3u45W4E-QbvS2v3PnKqpUyCKnULHOY_SA7OFt3Cbi-iLV3GN5SqiPA2qBw4pT_z8kCcUhdqI39INa5LCQT9cEY3iE1Zvq80_sGnn8SCqTCeWhOEli5CfUJlfQ5X-e4BBOZ"/>
+<img alt="" class="inline-block h-8 w-8 rounded-full ring-2 ring-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdGDJKcxG6nVFjyxZE5GTJknmpSOpe4u_x0N1_NIh3IVYMSMIg1PT4bIlZuz1U7ZlGq2T5V2frke4xmbcJkNkYght2lunxNtENWerUhLXw2p_wSUfWCE6FDqs8tE7q6R-KtVx0CNfQIhJ_xB4gDmHCIrWHluKrkZPRYNC91Wo8JBFb_uWMDELLPTNwW6s4MgaaQS1v3rHgYOvXPfvISRNmCsy5Nu6j3LcrzbhlCX29ygpB-gFDA8wJ5h0P9iyzPsTcEFGIfEDGe_6d"/>
+<div class="flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 ring-2 ring-white text-[10px] font-bold text-slate-600">+25</div>
+</div>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow">
+<div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-orange-50 text-orange-600 rounded-xl">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<button class="text-xs font-bold text-blue-600 hover:underline">Restock All</button>
+</div>
+<p class="text-slate-500 text-sm font-medium">Critical Alerts</p>
+<h3 class="text-3xl font-bold mt-1 text-orange-600">03 <span class="text-lg font-medium text-slate-400">Items</span></h3>
+</div>
+<div class="mt-6 space-y-2">
+<div class="w-full bg-slate-100 rounded-full h-1.5">
+<div class="bg-orange-500 h-1.5 rounded-full w-4/5"></div>
+</div>
+<p class="text-[10px] text-slate-400 font-medium uppercase tracking-tight">System Status: Surgical Masks Required</p>
+</div>
+</div>
+</div>
+<div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200/60">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h2 class="text-xl font-bold text-slate-900">Activity Overview</h2>
+<p class="text-sm text-slate-500">Weekly patient visits and consultation volume</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 text-xs font-semibold bg-slate-100 text-slate-900 rounded-lg hover:bg-slate-200 transition-colors">Week</button>
+<button class="px-4 py-2 text-xs font-semibold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">Month</button>
+</div>
+</div>
+<div class="relative h-[300px] w-full mt-4">
+<svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
+<defs>
+<linearGradient id="chartGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="rgba(37, 99, 235, 0.15)"></stop>
+<stop offset="100%" stop-color="rgba(37, 99, 235, 0)"></stop>
+</linearGradient>
+</defs>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="1000" y1="0" y2="0"></line>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="1000" y1="75" y2="75"></line>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="1000" y1="150" y2="150"></line>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="1000" y1="225" y2="225"></line>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="1000" y1="300" y2="300"></line>
+<path d="M0,250 Q150,180 300,220 T600,120 T1000,180 L1000,300 L0,300 Z" fill="url(#chartGradient)"></path>
+<path d="M0,250 Q150,180 300,220 T600,120 T1000,180" fill="none" stroke="#2563eb" stroke-linecap="round" stroke-width="3"></path>
+<circle cx="0" cy="250" fill="white" r="4" stroke="#2563eb" stroke-width="2"></circle>
+<circle cx="300" cy="220" fill="white" r="4" stroke="#2563eb" stroke-width="2"></circle>
+<circle cx="600" cy="120" fill="white" r="4" stroke="#2563eb" stroke-width="2"></circle>
+<circle cx="1000" cy="180" fill="white" r="4" stroke="#2563eb" stroke-width="2"></circle>
+</svg>
+<div class="absolute bottom-0 w-full flex justify-between px-2 pt-4 border-t border-slate-100">
+<span class="text-[10px] font-bold text-slate-400">MON</span>
+<span class="text-[10px] font-bold text-slate-400">TUE</span>
+<span class="text-[10px] font-bold text-slate-400">WED</span>
+<span class="text-[10px] font-bold text-slate-400">THU</span>
+<span class="text-[10px] font-bold text-slate-400">FRI</span>
+<span class="text-[10px] font-bold text-slate-400">SAT</span>
+<span class="text-[10px] font-bold text-slate-400">SUN</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
+<h3 class="font-bold text-slate-900 mb-4">Quick Actions</h3>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center gap-3 p-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/10 group">
+<span class="material-symbols-outlined">person_add</span>
+<span class="text-sm font-semibold">Add Patient</span>
+</button>
+<button class="flex items-center gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200/50">
+<span class="material-symbols-outlined text-slate-500">inventory</span>
+<span class="text-sm font-semibold">Update Stock</span>
+</button>
+<button class="flex items-center gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200/50">
+<span class="material-symbols-outlined text-slate-500">calendar_month</span>
+<span class="text-sm font-semibold">Shift Roster</span>
+</button>
+<button class="flex items-center gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200/50">
+<span class="material-symbols-outlined text-slate-500">receipt_long</span>
+<span class="text-sm font-semibold">Generate Bill</span>
+</button>
+</div>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-bold text-slate-900">Recent Logs</h3>
+<button class="text-xs font-bold text-blue-600">See All</button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
+<div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-semibold">Payment Received</p>
+<p class="text-xs text-slate-500">Invoice #INV-20412 • John Doe</p>
+</div>
+<span class="text-[10px] font-bold text-slate-400">2m ago</span>
+</div>
+<div class="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
+<div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined text-sm">priority_high</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-semibold">Low Stock Alert</p>
+<p class="text-xs text-slate-500">Paracetamol • 45 units left</p>
+</div>
+<span class="text-[10px] font-bold text-slate-400">14m ago</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all xl:hidden">
+<span class="material-symbols-outlined text-2xl font-bold">add</span>
+</button>
+
+</body></html>

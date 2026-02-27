@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Premium SaaS Admin Command Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary: #2563eb;
+            --sidebar-bg: #F9FAFB;
+            --workspace-bg: #FFFFFF;
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .sidebar-item-active {
+            @apply bg-blue-50 text-blue-700 border-r-2 border-blue-600;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-white text-slate-900 min-h-screen flex">
+<aside class="w-64 bg-[var(--sidebar-bg)] border-r border-gray-200 hidden lg:flex flex-col sticky top-0 h-screen">
+<div class="p-6 flex items-center gap-3">
+<div class="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
+<span class="material-symbols-outlined text-sm">shield_person</span>
+</div>
+<span class="font-bold text-gray-900 tracking-tight">SuperAdmin</span>
+</div>
+<nav class="flex-1 mt-4">
+<div class="px-4 mb-4">
+<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">Main Menu</p>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium sidebar-item-active" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+                    Command Center
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors mt-1" href="#">
+<span class="material-symbols-outlined text-[20px]">corporate_fare</span>
+                    Hospital Registry
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors mt-1" href="#">
+<span class="material-symbols-outlined text-[20px]">verified_user</span>
+                    Audit Logs
+                </a>
+</div>
+<div class="px-4 mt-8">
+<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">System</p>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                    Configurations
+                </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors mt-1" href="#">
+<span class="material-symbols-outlined text-[20px]">database</span>
+                    Storage Nodes
+                </a>
+</div>
+</nav>
+<div class="p-4 border-t border-gray-200">
+<div class="flex items-center gap-3 p-2 bg-white rounded-xl shadow-sm border border-gray-100">
+<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-bold text-gray-900 truncate">John Doe</p>
+<p class="text-[10px] text-gray-400 truncate">Master Admin</p>
+</div>
+<button class="text-gray-400 hover:text-red-500">
+<span class="material-symbols-outlined text-[18px]">logout</span>
+</button>
+</div>
+</div>
+</aside>
+<main class="flex-1 bg-[var(--workspace-bg)] min-h-screen">
+<header class="h-16 border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30">
+<div>
+<h1 class="text-lg font-bold text-gray-900">SaaS Command Center</h1>
+<p class="text-xs text-gray-500">Real-time infrastructure monitoring</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+<input class="bg-gray-50 border-none rounded-lg pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-2 focus:ring-blue-100" placeholder="Global search..." type="text"/>
+</div>
+<button class="bg-[var(--primary)] hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-semibold transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+                    Add New Hospital
+                </button>
+</div>
+</header>
+<div class="p-8 space-y-8">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">corporate_fare</span>
+</div>
+<span class="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">+12%</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Hospitals</p>
+<h3 class="text-2xl font-bold text-gray-900">1,284</h3>
+</div>
+<div class="mt-4 h-8 flex items-end gap-1">
+<div class="flex-1 bg-blue-100 rounded-t h-[40%]"></div>
+<div class="flex-1 bg-blue-100 rounded-t h-[60%]"></div>
+<div class="flex-1 bg-blue-200 rounded-t h-[45%]"></div>
+<div class="flex-1 bg-blue-400 rounded-t h-[80%]"></div>
+<div class="flex-1 bg-blue-100 rounded-t h-[50%]"></div>
+<div class="flex-1 bg-blue-600 rounded-t h-[100%]"></div>
+</div>
+</div>
+<div class="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-purple-50 rounded-lg text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">group</span>
+</div>
+<span class="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">+5.2k</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Active Users</p>
+<h3 class="text-2xl font-bold text-gray-900">42.5k</h3>
+</div>
+<div class="mt-4 h-8 flex items-end gap-1">
+<div class="flex-1 bg-purple-100 rounded-t h-[30%]"></div>
+<div class="flex-1 bg-purple-100 rounded-t h-[50%]"></div>
+<div class="flex-1 bg-purple-200 rounded-t h-[70%]"></div>
+<div class="flex-1 bg-purple-400 rounded-t h-[40%]"></div>
+<div class="flex-1 bg-purple-600 rounded-t h-[90%]"></div>
+<div class="flex-1 bg-purple-300 rounded-t h-[60%]"></div>
+</div>
+</div>
+<div class="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-emerald-50 rounded-lg text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">verified</span>
+</div>
+<span class="text-[10px] font-bold text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full">Optimal</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">System Health</p>
+<h3 class="text-2xl font-bold text-gray-900">99.9%</h3>
+</div>
+<div class="mt-4 h-8 flex items-end gap-1">
+<div class="flex-1 bg-emerald-100 rounded-t h-[90%]"></div>
+<div class="flex-1 bg-emerald-100 rounded-t h-[95%]"></div>
+<div class="flex-1 bg-emerald-200 rounded-t h-[92%]"></div>
+<div class="flex-1 bg-emerald-400 rounded-t h-[98%]"></div>
+<div class="flex-1 bg-emerald-600 rounded-t h-[100%]"></div>
+<div class="flex-1 bg-emerald-300 rounded-t h-[99%]"></div>
+</div>
+</div>
+<div class="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-orange-50 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+<span class="material-symbols-outlined">storage</span>
+</div>
+<span class="text-[10px] font-bold text-gray-400 px-2 py-0.5">854 TB</span>
+</div>
+<div>
+<p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Storage Utilization</p>
+<h3 class="text-2xl font-bold text-gray-900">68%</h3>
+</div>
+<div class="mt-4 h-8 flex items-end gap-1">
+<div class="flex-1 bg-orange-100 rounded-t h-[20%]"></div>
+<div class="flex-1 bg-orange-100 rounded-t h-[40%]"></div>
+<div class="flex-1 bg-orange-200 rounded-t h-[50%]"></div>
+<div class="flex-1 bg-orange-400 rounded-t h-[60%]"></div>
+<div class="flex-1 bg-orange-600 rounded-t h-[68%]"></div>
+<div class="flex-1 bg-orange-300 rounded-t h-[65%]"></div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<div class="xl:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col shadow-sm">
+<div class="p-6 border-b border-gray-50 flex items-center justify-between">
+<div>
+<h2 class="font-bold text-gray-900">Recently Onboarded Hospitals</h2>
+<p class="text-xs text-gray-500 mt-1">Showing latest 10 hospital entries in the last 30 days</p>
+</div>
+<button class="text-[var(--primary)] text-sm font-semibold hover:underline">Export CSV</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-gray-50/50">
+<tr>
+<th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hospital Name</th>
+<th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Region</th>
+<th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plan</th>
+<th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Users</th>
+<th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+<th class="px-6 py-4 text-right"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-50">
+<tr class="hover:bg-gray-50/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-blue-50 rounded text-blue-600 flex items-center justify-center text-xs font-bold">MH</div>
+<div>
+<p class="text-sm font-semibold text-gray-900">Mayo Clinic</p>
+<p class="text-[10px] text-gray-400">Onboarded 2h ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-gray-600">North America</td>
+<td class="px-6 py-4">
+<span class="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded">ENTERPRISE</span>
+</td>
+<td class="px-6 py-4 text-sm font-medium">1,240</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-xs font-medium text-emerald-700">Active</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-gray-400 hover:text-gray-900">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-red-50 rounded text-red-600 flex items-center justify-center text-xs font-bold">GH</div>
+<div>
+<p class="text-sm font-semibold text-gray-900">General Hospital</p>
+<p class="text-[10px] text-gray-400">Onboarded 5h ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-gray-600">Europe</td>
+<td class="px-6 py-4">
+<span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">PRO</span>
+</td>
+<td class="px-6 py-4 text-sm font-medium">850</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+<span class="text-xs font-medium text-amber-700">Pending</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-gray-400 hover:text-gray-900">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-amber-50 rounded text-amber-600 flex items-center justify-center text-xs font-bold">SJ</div>
+<div>
+<p class="text-sm font-semibold text-gray-900">St. Jude Medical</p>
+<p class="text-[10px] text-gray-400">Onboarded 12h ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-gray-600">South Asia</td>
+<td class="px-6 py-4">
+<span class="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded">ENTERPRISE</span>
+</td>
+<td class="px-6 py-4 text-sm font-medium">2,100</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-xs font-medium text-emerald-700">Active</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-gray-400 hover:text-gray-900">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50/50 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-emerald-50 rounded text-emerald-600 flex items-center justify-center text-xs font-bold">KC</div>
+<div>
+<p class="text-sm font-semibold text-gray-900">Kings College Hosp.</p>
+<p class="text-[10px] text-gray-400">Onboarded 1d ago</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-gray-600">Europe</td>
+<td class="px-6 py-4">
+<span class="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">BASIC</span>
+</td>
+<td class="px-6 py-4 text-sm font-medium">45</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-xs font-medium text-emerald-700">Active</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-gray-400 hover:text-gray-900">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+<div class="p-6 border-b border-gray-50">
+<h2 class="font-bold text-gray-900">System Activity Feed</h2>
+<p class="text-xs text-gray-500 mt-1">Live infrastructure event log</p>
+</div>
+<div class="p-6 flex-1 space-y-6">
+<div class="flex gap-4 group">
+<div class="relative">
+<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 z-10 relative">
+<span class="material-symbols-outlined text-[18px]">cloud_upload</span>
+</div>
+<div class="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold text-gray-900">Backup Completed</p>
+<span class="text-[10px] text-gray-400">2 min ago</span>
+</div>
+<p class="text-xs text-gray-500 mt-1 leading-relaxed">Full system backup for Node #US-WEST-1 finished successfully (4.2GB).</p>
+</div>
+</div>
+<div class="flex gap-4 group">
+<div class="relative">
+<div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 z-10 relative">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+</div>
+<div class="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold text-gray-900">Threshold Alert</p>
+<span class="text-[10px] text-gray-400">18 min ago</span>
+</div>
+<p class="text-xs text-gray-500 mt-1 leading-relaxed">Hospital 'St. Jude' exceeded concurrent user limit. Auto-scaling initiated.</p>
+</div>
+</div>
+<div class="flex gap-4 group">
+<div class="relative">
+<div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 z-10 relative">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+</div>
+<div class="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
+</div>
+<div class="flex-1 pb-4">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold text-gray-900">New Onboarding</p>
+<span class="text-[10px] text-gray-400">2h ago</span>
+</div>
+<p class="text-xs text-gray-500 mt-1 leading-relaxed">Mayo Clinic finalized Enterprise setup. Tenant instance deployed.</p>
+</div>
+</div>
+<div class="flex gap-4 group">
+<div class="relative">
+<div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 z-10 relative">
+<span class="material-symbols-outlined text-[18px]">update</span>
+</div>
+<div class="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<p class="text-sm font-bold text-gray-900">Security Patch</p>
+<span class="text-[10px] text-gray-400">5h ago</span>
+</div>
+<p class="text-xs text-gray-500 mt-1 leading-relaxed">Vulnerability patch v2.4.1 applied to all core API clusters.</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-gray-50 text-center">
+<button class="text-xs font-bold text-gray-500 hover:text-gray-900">View Full Audit Trail</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+<button class="flex flex-col items-center gap-1 text-[var(--primary)]">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold">Center</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">corporate_fare</span>
+<span class="text-[10px] font-medium">Registry</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">verified_user</span>
+<span class="text-[10px] font-medium">Audit</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400">
+<div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">JD</div>
+<span class="text-[10px] font-medium">Profile</span>
+</button>
+</nav>
+
+</body></html>

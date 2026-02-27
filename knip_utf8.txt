@@ -1,0 +1,56 @@
+﻿[93m[4mUnused files[24m[39m (30)
+fix_errors.cjs                                                                       
+fix_errors.js                                                                        
+fix_errors_2.cjs                                                                     
+scripts/audit_auth.js                                                                
+Intro_Page/clinicos---healthcare-operations-platform/App.tsx                         
+Intro_Page/clinicos---healthcare-operations-platform/index.css                       
+Intro_Page/clinicos---healthcare-operations-platform/index.tsx                       
+Intro_Page/clinicos---healthcare-operations-platform/postcss.config.js               
+Intro_Page/clinicos---healthcare-operations-platform/tailwind.config.js              
+Intro_Page/clinicos---healthcare-operations-platform/types.ts                        
+Intro_Page/clinicos---healthcare-operations-platform/vite.config.ts                  
+src/components/AdminDashboard.tsx                                                    
+src/lib/constants.ts                                                                 
+Intro_Page/clinicos---healthcare-operations-platform/components/AIInsightsSection.tsx
+Intro_Page/clinicos---healthcare-operations-platform/components/FeaturesGrid.tsx     
+Intro_Page/clinicos---healthcare-operations-platform/components/Footer.tsx           
+Intro_Page/clinicos---healthcare-operations-platform/components/Hero.tsx             
+Intro_Page/clinicos---healthcare-operations-platform/components/Navbar.tsx           
+Intro_Page/clinicos---healthcare-operations-platform/components/Offers.tsx           
+src/components/ui/checkbox.tsx                                                       
+src/components/ui/table.tsx                                                          
+src/components/ui/tabs.tsx                                                           
+supabase/functions/register-clinic-user/index.ts                                     
+Intro_Page/clinicos---healthcare-operations-platform/pages/About.tsx                 
+Intro_Page/clinicos---healthcare-operations-platform/pages/Careers.tsx               
+Intro_Page/clinicos---healthcare-operations-platform/pages/Contact.tsx               
+Intro_Page/clinicos---healthcare-operations-platform/pages/News.tsx                  
+Intro_Page/clinicos---healthcare-operations-platform/pages/Privacy.tsx               
+Intro_Page/clinicos---healthcare-operations-platform/pages/Solutions.tsx             
+Intro_Page/clinicos---healthcare-operations-platform/pages/Support.tsx               
+[93m[4mUnused dependencies[24m[39m (5)
+@radix-ui/react-checkbox  package.json:13:10
+@radix-ui/react-label     package.json:15:10
+@radix-ui/react-tabs      package.json:18:10
+dotenv                    package.json:23:10
+tailwindcss-animate       package.json:29:10
+[93m[4mUnused devDependencies[24m[39m (5)
+@eslint/js                   package.json:32:10
+eslint-plugin-react-hooks    package.json:39:10
+eslint-plugin-react-refresh  package.json:40:10
+globals                      package.json:41:10
+typescript-eslint            package.json:45:10
+[93m[4mUnused exports[24m[39m (9)
+Textarea                           src/components/ui/basic.tsx:103:103 
+reducer                            src/components/ui/use-toast.ts:70:14
+DialogPortal                       src/components/ui/dialog.tsx:112:5  
+DialogOverlay                      src/components/ui/dialog.tsx:113:5  
+DialogClose                        src/components/ui/dialog.tsx:114:5  
+AlertTitle                         src/components/ui/alert.tsx:36:17   
+SelectGroup                        src/components/ui/select.tsx:56:18  
+generateWhatsAppMessage  function  src/lib/utils.ts:8:17               
+ToastAction                        src/components/ui/toast.tsx:59:131  
+[93m[4mUnused exported types[24m[39m (1)
+ButtonProps  interface  src/components/ui/basic.tsx:32:18
+[33m[4mConfiguration hints[24m (1)[39m

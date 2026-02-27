@@ -1,0 +1,13 @@
+# PRE-LAUNCH CHECKLIST
+
+1.  **Enable Email Verifications:**
+    *   Currently, email verifications are bypassed for streamlined testing.
+    *   **Action:** Go to the Supabase Dashboard -> Authentication -> Providers -> Email, and turn ON "Confirm email".
+    *   **Action:** Remove the `auto_confirm_user` BEFORE INSERT trigger from the `auth.users` table in the database if it was added.
+    *   **Action:** Configure proper SMTP settings in Supabase to send verification emails from a custom domain instead of the default Supabase address.
+
+2.  **Review Role-Based Access Control (RBAC):**
+    *   Ensure all new users correctly map to their intended roles without default overwrites.
+
+3.  **Update Supabase Environment Variables:**
+    *   Ensure production points to the actual domain (e.g., SITE_URL) so verification links work correctly.

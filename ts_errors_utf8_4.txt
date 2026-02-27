@@ -1,0 +1,46 @@
+﻿src/components/ClinicAdminDashboard.tsx(2,10): error TS6133: 'ArrowLeft' is declared but its value is never read.
+src/components/ClinicAdminDashboard.tsx(2,30): error TS6133: 'Receipt' is declared but its value is never read.
+src/components/ClinicAdminDashboard.tsx(6,1): error TS6133: 'Button' is declared but its value is never read.
+src/components/HospitalsRegistry.tsx(187,42): error TS6133: 'fetchLogs' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(4,33): error TS6133: 'DialogHeader' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,10): error TS6133: 'AlertTriangle' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,33): error TS6133: 'Edit' is declared but its value is never read.
+src/components/InventoryDashboard.tsx(7,39): error TS6133: 'RefreshCcw' is declared but its value is never read.
+src/components/layout/AppLayout.tsx(2,1): error TS6192: All imports in import declaration are unused.
+src/components/layout/AppLayout.tsx(3,1): error TS6133: 'Button' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,10): error TS6133: 'Card' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,16): error TS6133: 'CardContent' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,29): error TS6133: 'CardHeader' is declared but its value is never read.
+src/components/POSDashboard.tsx(2,41): error TS6133: 'CardTitle' is declared but its value is never read.
+src/components/POSDashboard.tsx(6,33): error TS6133: 'DialogHeader' is declared but its value is never read.
+src/components/StaffPortal.tsx(5,1): error TS6192: All imports in import declaration are unused.
+src/components/StaffPortal.tsx(84,13): error TS2304: Cannot find name 'setIsAddStaffOpen'.
+src/components/StaffPortal.tsx(181,36): error TS2304: Cannot find name 'setIsAddStaffOpen'.
+src/components/StaffPortal.tsx(341,27): error TS2304: Cannot find name 'isAddStaffOpen'.
+src/components/StaffPortal.tsx(341,57): error TS2304: Cannot find name 'setIsAddStaffOpen'.
+src/components/StaffPortal.tsx(343,22): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(344,148): error TS2304: Cannot find name 'Plus'.
+src/components/StaffPortal.tsx(345,23): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(348,30): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(348,48): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(352,30): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(352,43): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(362,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(362,47): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(366,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(366,57): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(382,22): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(383,154): error TS2304: Cannot find name 'Key'.
+src/components/StaffPortal.tsx(384,23): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(392,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(392,99): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(402,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(402,104): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(421,22): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(422,154): error TS2304: Cannot find name 'Banknote'.
+src/components/StaffPortal.tsx(423,23): error TS2304: Cannot find name 'DialogHeader'.
+src/components/StaffPortal.tsx(433,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(433,96): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(442,34): error TS2304: Cannot find name 'Label'.
+src/components/StaffPortal.tsx(442,88): error TS2304: Cannot find name 'Label'.
+src/components/SuperAdminDashboard.tsx(309,54): error TS6133: 'idx' is declared but its value is never read.
