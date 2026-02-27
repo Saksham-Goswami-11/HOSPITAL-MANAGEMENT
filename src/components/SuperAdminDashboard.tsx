@@ -131,6 +131,12 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
             if (authError) throw authError
             if (!authData.user) throw new Error("No user created")
 
+            // CRITICAL: Supabase's "prevent email enumeration" returns a fake user (with a fake UUID and empty identities) if the email already exists.
+            // This fake UUID causes the foreign key constraint failure on 'hospitals_owner_id_fkey'.
+            if (authData.user?.identities && authData.user.identities.length === 0) {
+                throw new Error("This email is already registered to another user. Please use a different email for the new administrator.")
+            }
+
             // 3. Call secure RPC to create hospital and bypass RLS
             // @ts-ignore - super_admin_create_hospital is not in the generated schema types yet
             const { data: newHospitalId, error: rpcError } = await supabase.rpc('super_admin_create_hospital', {
