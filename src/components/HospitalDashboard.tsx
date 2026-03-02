@@ -613,7 +613,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                     </div>
 
                     {/* Chart Area */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center h-[450px]">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[400px] lg:h-[450px]">
                         <div className="lg:col-span-7 h-full relative">
                             {analyticsLoading ? (
                                 <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10 transition-opacity">
@@ -628,10 +628,10 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                 <>
                                     {/* Center Summary Label */}
                                     {!analyticsLoading && displayData.length > 0 && (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-10 z-10">
-                                            <div className="bg-slate-50/80 backdrop-blur-md px-6 py-4 rounded-[40px] border border-white/50 shadow-inner flex flex-col items-center">
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                                            <div className="bg-slate-50/80 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 rounded-[32px] md:rounded-[40px] border border-white/50 shadow-inner flex flex-col items-center">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Total Context</p>
-                                                <h3 className="text-4xl font-black text-slate-900 mt-1 tabular-nums transition-all duration-300">
+                                                <h3 className="text-2xl md:text-4xl font-black text-slate-900 mt-1 tabular-nums transition-all duration-300">
                                                     ₹{totalSelectedRevenue.toLocaleString()}
                                                 </h3>
                                                 <div className="flex gap-1 mt-2">
@@ -654,8 +654,8 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                             </defs>
                                             <Pie
                                                 data={displayData}
-                                                innerRadius={110}
-                                                outerRadius={150}
+                                                innerRadius="65%"
+                                                outerRadius="85%"
                                                 paddingAngle={8}
                                                 dataKey="value"
                                                 stroke="none"
