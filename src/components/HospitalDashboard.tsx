@@ -3,14 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Building2, TrendingUp, AlertTriangle, Plus, Loader2, UserPlus, Download, MessageCircle, MessageSquare, Package, ArrowUpRight, Shield } from 'lucide-react'
+import { Building2, TrendingUp, AlertTriangle, Plus, Loader2, UserPlus, Download, MessageCircle, Package, ArrowUpRight, Shield } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/use-toast'
 import { jsPDF } from "jspdf"
 import { useHospital } from '@/context/HospitalContext'
 import {
-    PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid
+    PieChart, Pie, Cell, Tooltip, ResponsiveContainer
 } from 'recharts'
 import {
     Select,
@@ -658,7 +657,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                                 onMouseEnter={(_, index) => setActiveIndex(index)}
                                                 onMouseLeave={() => setActiveIndex(null)}
                                             >
-                                                {displayData.map((entry: any, index: number) => (
+                                                {displayData.map((_entry: any, index: number) => (
                                                     <Cell
                                                         key={`cell-${index}`}
                                                         fill={`url(#grad-${index % COLORS.length})`}
