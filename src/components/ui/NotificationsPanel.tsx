@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useHospital } from '@/context/HospitalContext'
-import { X } from 'lucide-react'
+import { X, Stethoscope, AlertTriangle, User, Clock, MapPin, Tablet } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 interface Notification {
     id: string
@@ -13,12 +14,14 @@ interface Notification {
     clinicName?: string
     icon: string
     color: string
+    data?: any // RAW record data for detail view
 }
 
 export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { profile, inventory, clinics } = useHospital()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [loading, setLoading] = useState(false)
+    const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
 
     const role = profile?.role
     const isHospitalLevel = ['HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(role || '')
@@ -62,7 +65,8 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                         timestamp: sale.timestamp,
                         clinicName: isHospitalLevel ? clinicName : undefined,
                         icon: isConsultation ? 'stethoscope' : 'medication',
-                        color: isConsultation ? 'blue' : 'emerald'
+                        color: isConsultation ? 'blue' : 'emerald',
+                        data: sale
                     })
                 })
             }
@@ -84,7 +88,8 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                     timestamp: item.updated_at || new Date().toISOString(),
                     clinicName: isHospitalLevel ? clinic?.name : undefined,
                     icon: 'warning',
-                    color: 'orange'
+                    color: 'orange',
+                    data: item
                 })
             })
 
@@ -161,13 +166,17 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                             {notifications.map((notif) => {
                                 const colors = getColorClasses(notif.color)
                                 return (
-                                    <div key={notif.id} className="flex items-start gap-3 p-4 hover:bg-slate-50 transition-colors cursor-default">
-                                        <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center shrink-0`}>
+                                    <div
+                                        key={notif.id}
+                                        className="flex items-start gap-3 p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                        onClick={() => setSelectedNotification(notif)}
+                                    >
+                                        <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
                                             <span className={`material-symbols-outlined text-[18px] ${colors.text}`}>{notif.icon}</span>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <p className="text-sm font-bold text-slate-800 truncate">{notif.title}</p>
+                                                <p className="text-sm font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">{notif.title}</p>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
                                             </div>
                                             <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.message}</p>
@@ -200,5 +209,98 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
         </div>
     )
 
-    return createPortal(panelContent, document.body)
+    const modalContent = (
+        <Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
+            <DialogContent className="sm:max-w-md bg-white border border-slate-200 shadow-2xl p-0 overflow-hidden rounded-2xl">
+                {selectedNotification && (
+                    <div className="animate-in fade-in zoom-in-95 duration-200">
+                        <div className={`p-6 ${getColorClasses(selectedNotification.color).bg} border-b border-slate-100 flex items-center gap-4`}>
+                            <div className={`w-12 h-12 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center text-${selectedNotification.color}-600`}>
+                                <span className="material-symbols-outlined text-2xl">{selectedNotification.icon}</span>
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-bold text-slate-900">{selectedNotification.title}</DialogTitle>
+                                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">{timeAgo(selectedNotification.timestamp)}</p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {selectedNotification.type === 'low_stock' ? (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                                        <AlertTriangle className="w-5 h-5 text-orange-600" />
+                                        <p className="text-sm font-medium text-orange-800">Critical Stock Alert</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Item Name</p>
+                                            <p className="text-sm font-bold text-slate-900 mt-1">{selectedNotification.data?.item_name}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Batch</p>
+                                            <p className="text-sm font-mono text-slate-900 mt-1">{selectedNotification.data?.batch_number}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Current Stock</p>
+                                            <p className="text-lg font-bold text-orange-600 mt-1">{selectedNotification.data?.quantity}</p>
+                                        </div>
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Threshold</p>
+                                            <p className="text-lg font-bold text-slate-900 mt-1">{selectedNotification.data?.threshold || 10}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <Tablet className="w-5 h-5 text-emerald-600" />
+                                            <p className="text-sm font-medium text-emerald-800">Revenue Generated</p>
+                                        </div>
+                                        <p className="text-xl font-bold text-emerald-700">₹{selectedNotification.data?.amount?.toLocaleString()}</p>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <User className="w-4 h-4 text-slate-400" />
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Patient</p>
+                                                <p className="text-sm font-bold text-slate-900">{selectedNotification.data?.patient_name}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <Stethoscope className="w-4 h-4 text-slate-400" />
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Treating Doctor</p>
+                                                <p className="text-sm font-bold text-slate-900">{selectedNotification.data?.doctor_name}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                            <Clock className="w-4 h-4 text-slate-400" />
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase">Transaction ID</p>
+                                                <p className="text-xs font-mono text-slate-600">{selectedNotification.data?.id}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Clinic: {clinics.find(c => c.id === selectedNotification.data?.clinic_id)?.name || 'Main Centre'}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+
+    return (
+        <>
+            {createPortal(panelContent, document.body)}
+            {createPortal(modalContent, document.body)}
+        </>
+    )
 }

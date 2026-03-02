@@ -45,7 +45,9 @@
     }
 
     body {
-        @apply bg-background text-foreground font-sans;
+        @apply bg-background text-foreground;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-feature-settings: "tnum" on, "lnum" on;
         min-height: max(884px, 100dvh);
         scroll-behavior: smooth;
     }

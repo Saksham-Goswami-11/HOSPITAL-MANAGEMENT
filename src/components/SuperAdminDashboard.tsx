@@ -6,6 +6,8 @@ import { useToast } from '@/components/ui/use-toast'
 import { GlobalSearch } from './GlobalSearch'
 import { Input, Label, Button } from '@/components/ui/basic'
 import { Loader2 } from 'lucide-react'
+import { BillingOverview } from './billing/BillingOverview'
+import { SubscriptionManager } from './billing/SubscriptionManager'
 
 interface SuperAdminDashboardProps {
     onView?: (id: string) => void
@@ -20,8 +22,9 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
         storage: '0 MB'
     })
     const [hospitals, setHospitals] = useState<any[]>([])
-    const [recentHospitals, setRecentHospitals] = useState<any[]>([])
+    const [systemLogs, setSystemLogs] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
+    const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'security'>('overview')
 
     const [isRegisterOpen, setIsRegisterOpen] = useState(false)
     const [registerLoading, setRegisterLoading] = useState(false)
@@ -55,7 +58,7 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
 
             if (error) throw error
             setHospitals(hospitalList || [])
-            setRecentHospitals(hospitalList?.slice(0, 5) || []) // Get top 5 for feed
+            setHospitals(hospitalList || [])
 
             // Calculate aggregations
             const totalHospitals = hospitalList?.length || 0;
@@ -74,6 +77,15 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
                 active: activeCount,
                 storage: formattedStorage
             })
+
+            // 2. System Activity Logs
+            const { data: logs } = await supabase
+                .from('audit_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            if (logs) setSystemLogs(logs)
 
         } catch (error) {
             console.error("Super Admin Fetch Error:", error)
@@ -176,7 +188,20 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
             <header className="h-20 border-b border-gray-100 px-6 md:px-8 flex flex-col md:flex-row md:items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30 gap-4 md:gap-0 pt-4 md:pt-0">
                 <div>
                     <h1 className="text-xl font-bold text-gray-900 leading-tight">SaaS Command Center</h1>
-                    <p className="text-xs text-gray-500 mt-0.5">Real-time infrastructure monitoring</p>
+                    <div className="flex items-center gap-6 mt-2">
+                        <button
+                            onClick={() => setActiveTab('overview')}
+                            className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 transition-all ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Overview
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('subscriptions')}
+                            className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 transition-all ${activeTab === 'subscriptions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                        >
+                            Subscriptions
+                        </button>
+                    </div>
                 </div>
                 <div className="flex items-center gap-4 self-end md:self-auto pb-4 md:pb-0">
                     <div className="w-full max-w-sm hidden md:block relative z-50">
@@ -261,260 +286,250 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
             {/* Main Content Workspace */}
             <main className="flex-1 bg-[#FFFFFF] p-6 md:p-8 space-y-8">
 
-                {/* 4 KPI Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-                    {/* Total Hospitals */}
-                    <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">corporate_fare</span>
+                {activeTab === 'overview' ? (
+                    <>
+                        {/* 4 KPI Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                            {/* Total Hospitals */}
+                            <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                        <span className="material-symbols-outlined">corporate_fare</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                                    </span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Hospitals</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{stats.hospitals}</h3>
+                                </div>
+                                {/* Decorative Chart */}
+                                <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
+                                    <div className="flex-1 bg-blue-100 rounded-t h-[40%]"></div>
+                                    <div className="flex-1 bg-blue-100 rounded-t h-[60%]"></div>
+                                    <div className="flex-1 bg-blue-200 rounded-t h-[45%]"></div>
+                                    <div className="flex-1 bg-blue-400 rounded-t h-[80%]"></div>
+                                    <div className="flex-1 bg-blue-100 rounded-t h-[50%]"></div>
+                                    <div className="flex-1 bg-blue-600 rounded-t h-[100%]"></div>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></span> Active
-                            </span>
-                        </div>
-                        <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Hospitals</p>
-                            <h3 className="text-3xl font-bold text-gray-900">{stats.hospitals}</h3>
-                        </div>
-                        {/* Decorative Chart */}
-                        <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
-                            <div className="flex-1 bg-blue-100 rounded-t h-[40%]"></div>
-                            <div className="flex-1 bg-blue-100 rounded-t h-[60%]"></div>
-                            <div className="flex-1 bg-blue-200 rounded-t h-[45%]"></div>
-                            <div className="flex-1 bg-blue-400 rounded-t h-[80%]"></div>
-                            <div className="flex-1 bg-blue-100 rounded-t h-[50%]"></div>
-                            <div className="flex-1 bg-blue-600 rounded-t h-[100%]"></div>
-                        </div>
-                    </div>
 
-                    {/* Active Users */}
-                    <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-purple-50 rounded-lg text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">group</span>
+                            {/* Active Users */}
+                            <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                        <span className="material-symbols-outlined">group</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Overall</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Users</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{stats.users}</h3>
+                                </div>
+                                {/* Decorative Chart */}
+                                <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
+                                    <div className="flex-1 bg-purple-100 rounded-t h-[30%]"></div>
+                                    <div className="flex-1 bg-purple-100 rounded-t h-[50%]"></div>
+                                    <div className="flex-1 bg-purple-200 rounded-t h-[70%]"></div>
+                                    <div className="flex-1 bg-purple-400 rounded-t h-[40%]"></div>
+                                    <div className="flex-1 bg-purple-600 rounded-t h-[90%]"></div>
+                                    <div className="flex-1 bg-purple-300 rounded-t h-[60%]"></div>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Overall</span>
-                        </div>
-                        <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Users</p>
-                            <h3 className="text-3xl font-bold text-gray-900">{stats.users}</h3>
-                        </div>
-                        {/* Decorative Chart */}
-                        <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
-                            <div className="flex-1 bg-purple-100 rounded-t h-[30%]"></div>
-                            <div className="flex-1 bg-purple-100 rounded-t h-[50%]"></div>
-                            <div className="flex-1 bg-purple-200 rounded-t h-[70%]"></div>
-                            <div className="flex-1 bg-purple-400 rounded-t h-[40%]"></div>
-                            <div className="flex-1 bg-purple-600 rounded-t h-[90%]"></div>
-                            <div className="flex-1 bg-purple-300 rounded-t h-[60%]"></div>
-                        </div>
-                    </div>
 
-                    {/* System Health */}
-                    <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">verified</span>
+                            {/* System Health */}
+                            <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                        <span className="material-symbols-outlined">verified</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full">Optimal</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">System Health</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">99.9%</h3>
+                                </div>
+                                {/* Decorative Chart */}
+                                <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
+                                    <div className="flex-1 bg-emerald-100 rounded-t h-[90%]"></div>
+                                    <div className="flex-1 bg-emerald-100 rounded-t h-[95%]"></div>
+                                    <div className="flex-1 bg-emerald-200 rounded-t h-[92%]"></div>
+                                    <div className="flex-1 bg-emerald-400 rounded-t h-[98%]"></div>
+                                    <div className="flex-1 bg-emerald-600 rounded-t h-[100%]"></div>
+                                    <div className="flex-1 bg-emerald-300 rounded-t h-[99%]"></div>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-bold text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full">Optimal</span>
-                        </div>
-                        <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">System Health</p>
-                            <h3 className="text-3xl font-bold text-gray-900">99.9%</h3>
-                        </div>
-                        {/* Decorative Chart */}
-                        <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
-                            <div className="flex-1 bg-emerald-100 rounded-t h-[90%]"></div>
-                            <div className="flex-1 bg-emerald-100 rounded-t h-[95%]"></div>
-                            <div className="flex-1 bg-emerald-200 rounded-t h-[92%]"></div>
-                            <div className="flex-1 bg-emerald-400 rounded-t h-[98%]"></div>
-                            <div className="flex-1 bg-emerald-600 rounded-t h-[100%]"></div>
-                            <div className="flex-1 bg-emerald-300 rounded-t h-[99%]"></div>
-                        </div>
-                    </div>
 
-                    {/* Storage Utilization */}
-                    <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-orange-50 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                                <span className="material-symbols-outlined">storage</span>
+                            {/* Storage Utilization */}
+                            <div className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-2 bg-orange-50 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                                        <span className="material-symbols-outlined">storage</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-400 px-2 py-0.5">Aggregated</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Storage</p>
+                                    <h3 className="text-3xl font-bold text-gray-900">{stats.storage}</h3>
+                                </div>
+                                {/* Decorative Chart */}
+                                <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
+                                    <div className="flex-1 bg-orange-100 rounded-t h-[20%]"></div>
+                                    <div className="flex-1 bg-orange-100 rounded-t h-[40%]"></div>
+                                    <div className="flex-1 bg-orange-200 rounded-t h-[50%]"></div>
+                                    <div className="flex-1 bg-orange-400 rounded-t h-[60%]"></div>
+                                    <div className="flex-1 bg-orange-600 rounded-t h-[68%]"></div>
+                                    <div className="flex-1 bg-orange-300 rounded-t h-[65%]"></div>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-bold text-gray-400 px-2 py-0.5">Aggregated</span>
                         </div>
-                        <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Storage</p>
-                            <h3 className="text-3xl font-bold text-gray-900">{stats.storage}</h3>
-                        </div>
-                        {/* Decorative Chart */}
-                        <div className="mt-4 h-8 flex items-end gap-1 opacity-80 mix-blend-multiply">
-                            <div className="flex-1 bg-orange-100 rounded-t h-[20%]"></div>
-                            <div className="flex-1 bg-orange-100 rounded-t h-[40%]"></div>
-                            <div className="flex-1 bg-orange-200 rounded-t h-[50%]"></div>
-                            <div className="flex-1 bg-orange-400 rounded-t h-[60%]"></div>
-                            <div className="flex-1 bg-orange-600 rounded-t h-[68%]"></div>
-                            <div className="flex-1 bg-orange-300 rounded-t h-[65%]"></div>
-                        </div>
-                    </div>
 
-                </div>
+                        {/* Revenue & Subscriptions Section */}
+                        <BillingOverview />
 
-                {/* Sub-grid for Tables / Feeds */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                        {/* Sub-grid for Tables / Feeds */}
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
 
-                    {/* Left: Recently Onboarded Hospitals */}
-                    <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col shadow-sm">
-                        <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                            <div>
-                                <h2 className="font-bold text-gray-900 text-lg">Recently Onboarded Hospitals</h2>
-                                <p className="text-xs text-gray-500 mt-1">Showing latest 10 hospital entries across all regions</p>
+                            {/* Left: Recently Onboarded Hospitals */}
+                            <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden flex flex-col shadow-sm">
+                                <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div>
+                                        <h2 className="font-bold text-gray-900 text-lg">Recently Onboarded Hospitals</h2>
+                                        <p className="text-xs text-gray-500 mt-1">Showing latest 10 hospital entries across all regions</p>
+                                    </div>
+                                    <button className="text-[#2563eb] text-sm font-semibold hover:underline">Export CSV</button>
+                                </div>
+                                <div className="overflow-x-auto flex-1">
+                                    <table className="w-full text-left min-w-[600px]">
+                                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                                            <tr>
+                                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hospital Name</th>
+                                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Clinics</th>
+                                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plan</th>
+                                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Users</th>
+                                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                                                <th className="px-6 py-4 text-right"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {loading && hospitals.length === 0 && (
+                                                <tr><td colSpan={6} className="text-center py-8 text-gray-400"><span className="material-symbols-outlined animate-spin text-2xl">sync</span></td></tr>
+                                            )}
+                                            {hospitals.slice(0, 10).map((h, i) => {
+                                                // Generate an avatar initial based on hospital name
+                                                const initial = h.name.substring(0, 2).toUpperCase();
+                                                const bgColors = ['bg-blue-50 text-blue-600', 'bg-emerald-50 text-emerald-600', 'bg-amber-50 text-amber-600', 'bg-purple-50 text-purple-600'];
+                                                const colorClass = bgColors[i % bgColors.length];
+
+                                                return (
+                                                    <tr key={h.id} className="hover:bg-gray-50/50 transition-colors group">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center text-xs font-bold ${colorClass}`}>
+                                                                    {initial}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-gray-900 truncate max-w-[180px]">{h.name}</p>
+                                                                    <p className="text-[10px] text-gray-400">Onboarded {formatTimeAgo(h.created_at)}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-sm text-gray-600">{h.total_clinics || 0}</td>
+                                                        <td className="px-6 py-4">
+                                                            {getPlanBadge(h.subscription_plan || 'Basic')}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-sm font-medium text-gray-700">{(h.total_users || 0).toLocaleString()}</td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {h.is_active !== false ? (
+                                                                    <>
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                                        <span className="text-xs font-medium text-emerald-700">Active</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                                                                        <span className="text-xs font-medium text-red-700">Suspended</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <button
+                                                                onClick={() => onView && onView(h.id)}
+                                                                className="text-gray-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors"
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <button className="text-[#2563eb] text-sm font-semibold hover:underline">Export CSV</button>
-                        </div>
-                        <div className="overflow-x-auto flex-1">
-                            <table className="w-full text-left min-w-[600px]">
-                                <thead className="bg-gray-50/50 border-b border-gray-100">
-                                    <tr>
-                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hospital Name</th>
-                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Clinics</th>
-                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plan</th>
-                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Users</th>
-                                        <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-right"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {loading && hospitals.length === 0 && (
-                                        <tr><td colSpan={6} className="text-center py-8 text-gray-400"><span className="material-symbols-outlined animate-spin text-2xl">sync</span></td></tr>
-                                    )}
-                                    {hospitals.slice(0, 10).map((h, i) => {
-                                        // Generate an avatar initial based on hospital name
-                                        const initial = h.name.substring(0, 2).toUpperCase();
-                                        const bgColors = ['bg-blue-50 text-blue-600', 'bg-emerald-50 text-emerald-600', 'bg-amber-50 text-amber-600', 'bg-purple-50 text-purple-600'];
-                                        const colorClass = bgColors[i % bgColors.length];
+
+                            {/* Right: System Activity Feed */}
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden max-h-[600px]">
+                                <div className="p-6 border-b border-gray-50 shrink-0">
+                                    <h2 className="font-bold text-gray-900">System Activity Feed</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Live infrastructure event log & signups</p>
+                                </div>
+                                <div className="p-6 flex-1 overflow-y-auto space-y-6">
+
+                                    {/* Real activity logs */}
+                                    {systemLogs.map((log) => {
+                                        const isNewHospital = log.action?.includes('CREATE_HOSPITAL') || log.action?.includes('REGISTER');
+                                        const isSecurity = log.status === 'ERROR' || log.action?.includes('SECURITY');
+
+                                        let icon = 'event_note';
+                                        let iconBg = 'bg-slate-100 text-slate-600';
+
+                                        if (isNewHospital) {
+                                            icon = 'person_add';
+                                            iconBg = 'bg-emerald-100 text-emerald-600';
+                                        } else if (isSecurity) {
+                                            icon = 'security';
+                                            iconBg = 'bg-red-100 text-red-600';
+                                        }
 
                                         return (
-                                            <tr key={h.id} className="hover:bg-gray-50/50 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center text-xs font-bold ${colorClass}`}>
-                                                            {initial}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-semibold text-gray-900 truncate max-w-[180px]">{h.name}</p>
-                                                            <p className="text-[10px] text-gray-400">Onboarded {formatTimeAgo(h.created_at)}</p>
-                                                        </div>
+                                            <div key={log.id} className="flex gap-4 group">
+                                                <div className="relative">
+                                                    <div className={`w-8 h-8 rounded-full ${iconBg} flex items-center justify-center z-10 relative`}>
+                                                        <span className="material-symbols-outlined text-[18px]">{icon}</span>
                                                     </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-600">{h.total_clinics || 0}</td>
-                                                <td className="px-6 py-4">
-                                                    {getPlanBadge(h.subscription_plan || 'Basic')}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm font-medium text-gray-700">{(h.total_users || 0).toLocaleString()}</td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-1.5">
-                                                        {h.is_active !== false ? (
-                                                            <>
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                                                <span className="text-xs font-medium text-emerald-700">Active</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                                                                <span className="text-xs font-medium text-red-700">Suspended</span>
-                                                            </>
-                                                        )}
+                                                    <div className="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
+                                                </div>
+                                                <div className="flex-1 pb-4">
+                                                    <div className="flex justify-between items-start">
+                                                        <p className="text-sm font-bold text-gray-900">{log.action || 'System Event'}</p>
+                                                        <span className="text-[10px] text-gray-400">{formatTimeAgo(log.created_at)}</span>
                                                     </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button
-                                                        onClick={() => onView && onView(h.id)}
-                                                        className="text-gray-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        )
+                                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{log.details || 'No details recorded.'}</p>
+                                                </div>
+                                            </div>
+                                        );
                                     })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
 
-                    {/* Right: System Activity Feed */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden max-h-[600px]">
-                        <div className="p-6 border-b border-gray-50 shrink-0">
-                            <h2 className="font-bold text-gray-900">System Activity Feed</h2>
-                            <p className="text-xs text-gray-500 mt-1">Live infrastructure event log & signups</p>
-                        </div>
-                        <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                                    {/* Empty state padding if needed */}
+                                    {systemLogs.length === 0 && !loading && (
+                                        <div className="text-center py-8 text-gray-400 text-sm">No recent network activity documented.</div>
+                                    )}
 
-                            {/* Inject static feed mixed with actual onboardings */}
-                            {recentHospitals.map((h) => (
-                                <div key={`ob-${h.id}`} className="flex gap-4 group">
-                                    <div className="relative">
-                                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 z-10 relative">
-                                            <span className="material-symbols-outlined text-[18px]">person_add</span>
-                                        </div>
-                                        <div className="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
-                                    </div>
-                                    <div className="flex-1 pb-4">
-                                        <div className="flex justify-between items-start">
-                                            <p className="text-sm font-bold text-gray-900">New Onboarding</p>
-                                            <span className="text-[10px] text-gray-400">{formatTimeAgo(h.created_at)}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1 leading-relaxed">Hospital '{h.name}' finalized setup. Tenant instance deployed automatically.</p>
-                                    </div>
                                 </div>
-                            ))}
-
-                            {/* Static mock feeds to make it look alive */}
-                            <div className="flex gap-4 group">
-                                <div className="relative">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 z-10 relative">
-                                        <span className="material-symbols-outlined text-[18px]">cloud_upload</span>
-                                    </div>
-                                    <div className="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
-                                </div>
-                                <div className="flex-1 pb-4">
-                                    <div className="flex justify-between items-start">
-                                        <p className="text-sm font-bold text-gray-900">Database Snapshot</p>
-                                        <span className="text-[10px] text-gray-400">12h ago</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">Full system backup for Master Database finished successfully.</p>
+                                <div className="p-4 bg-gray-50 text-center border-t border-gray-100 shrink-0">
+                                    <button className="text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors">View Full Audit Trail</button>
                                 </div>
                             </div>
 
-                            <div className="flex gap-4 group">
-                                <div className="relative">
-                                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 z-10 relative">
-                                        <span className="material-symbols-outlined text-[18px]">update</span>
-                                    </div>
-                                    <div className="absolute top-8 bottom-[-24px] left-1/2 -translate-x-1/2 w-px bg-gray-100 group-last:hidden"></div>
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <p className="text-sm font-bold text-gray-900">Security Patch</p>
-                                        <span className="text-[10px] text-gray-400">1d ago</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">Vulnerability patch applied to all core API clusters securely.</p>
-                                </div>
-                            </div>
-
-                            {/* Empty state padding if needed */}
-                            {recentHospitals.length === 0 && !loading && (
-                                <div className="text-center py-8 text-gray-400 text-sm">No recent network activity documented.</div>
-                            )}
-
                         </div>
-                        <div className="p-4 bg-gray-50 text-center border-t border-gray-100 shrink-0">
-                            <button className="text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors">View Full Audit Trail</button>
-                        </div>
-                    </div>
-
-                </div>
+                    </>
+                ) : (
+                    <SubscriptionManager />
+                )}
 
             </main>
         </div>

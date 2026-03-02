@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/basic'
 import { Input } from '@/components/ui/basic'
 import { Label } from '@/components/ui/basic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/basic'
-import { Lock, Mail, Loader2, AlertCircle, ArrowRight } from 'lucide-react'
+import { Lock, Mail, Loader2, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 
@@ -63,6 +63,14 @@ export function LoginPage() {
             {/* Background Decoration */}
             <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-100 rounded-full blur-[100px] opacity-60 pointer-events-none" />
             <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-100 rounded-full blur-[100px] opacity-60 pointer-events-none" />
+
+            <button
+                onClick={() => window.location.hash = '#/'}
+                className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors z-10"
+            >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+            </button>
 
             <Card className="w-full max-w-md glass-card shadow-2xl border-white/50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-500">
                 <CardHeader className="space-y-4 pt-8 text-center pb-2">
@@ -150,13 +158,24 @@ export function LoginPage() {
                         </Button>
                     </form>
                 </CardContent>
-                <CardFooter className="flex justify-center border-t border-slate-100 pt-6">
+                <CardFooter className="flex flex-col gap-4 border-t border-slate-100 pt-6">
                     <button
                         onClick={() => { setError(null); setIsForgotMode(!isForgotMode); }}
                         className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors"
                     >
                         {isForgotMode ? "Back to Login" : "Forgot your password?"}
                     </button>
+                    {!isForgotMode && (
+                        <p className="text-sm text-slate-500">
+                            Don't have an account?{' '}
+                            <button
+                                onClick={() => window.location.hash = '#/register'}
+                                className="text-blue-600 font-bold hover:underline"
+                            >
+                                Create an account
+                            </button>
+                        </p>
+                    )}
                 </CardFooter>
             </Card>
         </div>

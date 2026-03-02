@@ -15,6 +15,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
     const { inventory, profile: userProfile, clinics, refreshData, hospital, updateInventoryItem } = useHospital()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
+    const [syncing, setSyncing] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [filterClinicId, setFilterClinicId] = useState('all')
     const [editingItem, setEditingItem] = useState<any>(null)
@@ -34,14 +35,18 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             const matchesSearch = i.item_name.toLowerCase().includes(searchQuery.toLowerCase()) || i.batch_number.toLowerCase().includes(searchQuery.toLowerCase());
 
             let matchesType = true;
-            if (filterType === 'low') matchesType = i.quantity < (i.threshold || 10);
+            const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+            if (filterType === 'low') matchesType = i.quantity < threshold;
             if (filterType === 'expired') matchesType = new Date(i.expiry_date) < now;
 
             return matchesClinicOverride && matchesDropdownFilter && matchesSearch && matchesType;
         });
     }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType]);
 
-    const lowStockCount = inventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && i.quantity < (i.threshold || 10)).length;
+    const lowStockCount = inventory.filter(i => {
+        const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+        return (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && i.quantity < threshold;
+    }).length;
     const expiredCount = inventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && new Date(i.expiry_date) < now).length;
 
     const getIconInfo = (itemName: string) => {
@@ -85,7 +90,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                 mrp: mrp,
                 batch_number,
                 expiry_date,
-                threshold: 20 // Default threshold
+                threshold: hospital?.settings?.global_low_stock_threshold || 20 // Default to global threshold
             }])
 
         if (error) {
@@ -110,7 +115,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             expiry_date: formData.get('expiry_date') as string,
             mrp: parseFloat(formData.get('mrp') as string) || 0,
             quantity: parseInt(formData.get('quantity') as string) || 0,
-            threshold: parseInt(formData.get('threshold') as string) || 10
+            threshold: parseInt(formData.get('threshold') as string) || hospital?.settings?.global_low_stock_threshold || 10
         }
 
         try {
@@ -252,6 +257,26 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
         }
     }
 
+    const handleSync = async () => {
+        setSyncing(true)
+        try {
+            await refreshData()
+            toast({
+                title: "Database Synced",
+                description: "Inventory records have been successfully updated.",
+                variant: "default"
+            })
+        } catch (error) {
+            toast({
+                title: "Sync Failed",
+                description: "Failed to update records. Please check your connection.",
+                variant: "destructive"
+            })
+        } finally {
+            setSyncing(false)
+        }
+    }
+
     return (
         <div className={isFullScreen
             ? "fixed inset-0 z-50 bg-slate-50 p-4 sm:p-6 lg:p-8 flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
@@ -278,9 +303,13 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                             ))}
                         </select>
                     )}
-                    <button onClick={refreshData} className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors bg-white shadow-sm">
-                        <span className="material-symbols-outlined text-[20px]">sync</span>
-                        Sync DB
+                    <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors bg-white shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        <span className={`material-symbols-outlined text-[20px] ${syncing ? 'animate-spin' : ''}`}>sync</span>
+                        {syncing ? 'Syncing...' : 'Sync DB'}
                     </button>
 
                     <input
@@ -372,7 +401,8 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 ) : (
                                     filteredInventory.map(item => {
                                         const { icon, color } = getIconInfo(item.item_name);
-                                        const isLow = item.quantity < (item.threshold || 10);
+                                        const threshold = item.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+                                        const isLow = item.quantity < threshold;
                                         const isExpired = new Date(item.expiry_date) < now;
                                         const pct = Math.min(100, Math.max(5, (item.quantity / (item.threshold * 2 || 100)) * 100));
 
@@ -518,7 +548,10 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 </h3>
                             </div>
                             <div className="space-y-3">
-                                {filteredInventory.slice(0, 3).filter(i => i.quantity < (i.threshold || 10)).map(item => (
+                                {filteredInventory.slice(0, 3).filter(item => {
+                                    const threshold = item.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+                                    return item.quantity < threshold;
+                                }).map(item => (
                                     <div key={'alert-' + item.id} className="flex items-start gap-3 p-3 rounded-xl border border-orange-100 bg-orange-50/30">
                                         <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 shrink-0 animate-pulse"></div>
                                         <div className="min-w-0">

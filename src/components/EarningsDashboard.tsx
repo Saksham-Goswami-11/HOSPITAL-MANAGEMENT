@@ -3,12 +3,72 @@ import { supabase } from '@/lib/supabase';
 import { useHospital } from '@/context/HospitalContext';
 import { Loader2, TrendingUp, Download, Building2, Stethoscope, Pill } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/basic';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+
 import { Button } from '@/components/ui/basic';
 import { jsPDF } from "jspdf";
 
 type DateRange = 'today' | 'week' | 'month' | 'all';
 
+function TransactionTable({ sales, clinics }: { sales: any[], clinics: any[] }) {
+    return (
+        <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b">
+                    <tr>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Patient</th>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Clinic</th>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Type</th>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Amount</th>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Mode</th>
+                        <th className="px-4 py-3 font-semibold text-slate-700 text-right">Time</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y">
+                    {sales.length === 0 ? (
+                        <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center text-slate-500">No transactions found for this category.</td>
+                        </tr>
+                    ) : (
+                        sales.map((sale) => (
+                            <tr key={sale.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-3">
+                                    <p className="font-medium text-slate-900">{sale.patient_name}</p>
+                                    <p className="text-xs text-slate-500">Dr. {sale.doctor_name}</p>
+                                </td>
+                                <td className="px-4 py-3 text-slate-600">
+                                    {clinics.find(c => c.id === sale.clinic_id)?.name || 'Unknown'}
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${sale.sale_type === 'CONSULTATION'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : sale.sale_type === 'SERVICE'
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : 'bg-purple-100 text-purple-700'
+                                        }`}>
+                                        {sale.sale_type}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 font-mono font-bold text-slate-900">
+                                    ₹{sale.amount?.toLocaleString()}
+                                </td>
+                                <td className="px-4 py-3 text-slate-600 italic">
+                                    {sale.payment_mode}
+                                </td>
+                                <td className="px-4 py-3 text-right text-slate-500 text-xs">
+                                    {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export function EarningsDashboard() {
+
     const { hospital, clinics } = useHospital();
     const [sales, setSales] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -207,53 +267,103 @@ export function EarningsDashboard() {
                 <>
                     {/* Top KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between pb-2">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Revenue</h3>
-                                    <TrendingUp className="w-5 h-5 text-emerald-500 bg-emerald-50 p-1 rounded-md" />
+                        {/* Total Revenue Modal */}
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group cursor-pointer hover:ring-2 hover:ring-emerald-500/20 transition-all">
+                                    <CardContent className="p-6">
+                                        <div className="flex items-center justify-between pb-2">
+                                            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Revenue</h3>
+                                            <TrendingUp className="w-5 h-5 text-emerald-500 bg-emerald-50 p-1 rounded-md" />
+                                        </div>
+                                        <div className="text-4xl font-bold text-slate-900 group-hover:scale-105 transition-transform origin-left">
+                                            ₹{metrics.total.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-slate-400 mt-2 font-medium flex justify-between items-center">
+                                            <span>{sales.length} Total Transactions</span>
+                                            <span className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">Click for ledger →</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col p-0">
+                                <DialogHeader className="p-6 pb-4 border-b">
+                                    <DialogTitle>Total Revenue Ledger</DialogTitle>
+                                    <p className="text-sm text-slate-500">Full transaction history for the selected {dateRange} period.</p>
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 pt-0">
+                                    <TransactionTable sales={sales} clinics={clinics} />
                                 </div>
-                                <div className="text-4xl font-bold text-slate-900">
-                                    ₹{metrics.total.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-slate-400 mt-2 font-medium">
-                                    {sales.length} Total Transactions
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </DialogContent>
+                        </Dialog>
 
-                        <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between pb-2">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Consultancy Services</h3>
-                                    <Stethoscope className="w-5 h-5 text-blue-500 bg-blue-50 p-1 rounded-md" />
+                        {/* Consultancy Modal */}
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group cursor-pointer hover:ring-2 hover:ring-blue-500/20 transition-all">
+                                    <CardContent className="p-6">
+                                        <div className="flex items-center justify-between pb-2">
+                                            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Consultancy Services</h3>
+                                            <Stethoscope className="w-5 h-5 text-blue-500 bg-blue-50 p-1 rounded-md" />
+                                        </div>
+                                        <div className="text-4xl font-bold text-slate-900 text-blue-900 group-hover:scale-105 transition-transform origin-left">
+                                            ₹{metrics.consultancy.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-blue-600/70 mt-2 font-medium flex justify-between">
+                                            <span>Doctor Fees & Services</span>
+                                            <span>{metrics.total > 0 ? Math.round((metrics.consultancy / metrics.total) * 100) : 0}% of Total</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col p-0">
+                                <DialogHeader className="p-6 pb-4 border-b text-blue-900">
+                                    <DialogTitle>Consultancy & Service Ledger</DialogTitle>
+                                    <p className="text-sm text-blue-600/70">Breakdown of consultations and medical services.</p>
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 pt-0">
+                                    <TransactionTable
+                                        sales={sales.filter(s => s.sale_type === 'CONSULTATION' || s.sale_type === 'SERVICE')}
+                                        clinics={clinics}
+                                    />
                                 </div>
-                                <div className="text-4xl font-bold text-slate-900 text-blue-900">
-                                    ₹{metrics.consultancy.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-blue-600/70 mt-2 font-medium flex justify-between">
-                                    <span>Doctor Fees & Services</span>
-                                    <span>{metrics.total > 0 ? Math.round((metrics.consultancy / metrics.total) * 100) : 0}% of Total</span>
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </DialogContent>
+                        </Dialog>
 
-                        <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between pb-2">
-                                    <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Pharmacy Sales</h3>
-                                    <Pill className="w-5 h-5 text-purple-500 bg-purple-50 p-1 rounded-md" />
+                        {/* Pharmacy Modal */}
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group cursor-pointer hover:ring-2 hover:ring-purple-500/20 transition-all">
+                                    <CardContent className="p-6">
+                                        <div className="flex items-center justify-between pb-2">
+                                            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Pharmacy Sales</h3>
+                                            <Pill className="w-5 h-5 text-purple-500 bg-purple-50 p-1 rounded-md" />
+                                        </div>
+                                        <div className="text-4xl font-bold text-slate-900 text-purple-900 group-hover:scale-105 transition-transform origin-left">
+                                            ₹{metrics.pharmacy.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-purple-600/70 mt-2 font-medium flex justify-between">
+                                            <span>Medications & Items</span>
+                                            <span>{metrics.total > 0 ? Math.round((metrics.pharmacy / metrics.total) * 100) : 0}% of Total</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col p-0">
+                                <DialogHeader className="p-6 pb-4 border-b text-purple-900">
+                                    <DialogTitle>Pharmacy & Inventory Ledger</DialogTitle>
+                                    <p className="text-sm text-purple-600/70">Detailed records of medication and pharmacy item sales.</p>
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 pt-0">
+                                    <TransactionTable
+                                        sales={sales.filter(s => s.sale_type !== 'CONSULTATION' && s.sale_type !== 'SERVICE')}
+                                        clinics={clinics}
+                                    />
                                 </div>
-                                <div className="text-4xl font-bold text-slate-900 text-purple-900">
-                                    ₹{metrics.pharmacy.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-purple-600/70 mt-2 font-medium flex justify-between">
-                                    <span>Medications & Items</span>
-                                    <span>{metrics.total > 0 ? Math.round((metrics.pharmacy / metrics.total) * 100) : 0}% of Total</span>
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </DialogContent>
+                        </Dialog>
                     </div>
+
 
                     {/* Clinic Performance Table */}
                     <Card className="border border-slate-200 shadow-sm bg-white">

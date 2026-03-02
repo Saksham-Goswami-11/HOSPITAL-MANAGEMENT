@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 
 const Navbar: React.FC = () => {
@@ -22,11 +22,34 @@ const Navbar: React.FC = () => {
   }, [location.pathname]);
 
   const navLinks = [
-    { name: 'Solutions', path: '/' },
-    { name: 'About', path: '/' },
-    { name: 'News', path: '/' },
-    { name: 'Contact', path: '/' },
+    { name: 'Solutions', path: 'offers', isSection: true },
+    { name: 'Pricing', path: 'pricing', isSection: true },
+    { name: 'About', path: '/about', isSection: false },
+    { name: 'News', path: '/news', isSection: false },
+    { name: 'Contact', path: '/contact', isSection: false },
   ];
+
+  const navigate = useNavigate();
+
+  const handleNavClick = (link: typeof navLinks[0]) => {
+    if (link.isSection) {
+      if (location.pathname !== '/') {
+        navigate('/');
+        // Give it a moment to mount the LandingPage
+        setTimeout(() => {
+          const element = document.getElementById(link.path);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      } else {
+        const element = document.getElementById(link.path);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }
+  };
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -53,13 +76,23 @@ const Navbar: React.FC = () => {
 
           <div className="hidden md:flex items-center space-x-8">
             {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                to={link.path}
-                className={`text-sm font-medium transition-colors ${location.pathname === link.path ? 'text-primary' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                {link.name}
-              </Link>
+              link.isSection ? (
+                <button
+                  key={link.name}
+                  onClick={() => handleNavClick(link)}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  {link.name}
+                </button>
+              ) : (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  className={`text-sm font-medium transition-colors ${location.pathname === link.path ? 'text-primary' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  {link.name}
+                </Link>
+              )
             ))}
             <Link to="/app" className="bg-primary hover:opacity-90 px-6 py-2.5 rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all text-white">
               Launch App
@@ -90,13 +123,26 @@ const Navbar: React.FC = () => {
         <div className="md:hidden fixed inset-x-0 top-[73px] bg-white border-b border-slate-100 p-6 space-y-6 shadow-2xl z-50 animate-in fade-in slide-in-from-top-4 flex flex-col h-[calc(100vh-73px)] overflow-y-auto">
           <div className="space-y-4">
             {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                to={link.path}
-                className="block text-lg font-bold text-slate-700 hover:text-primary py-3 border-b border-slate-50"
-              >
-                {link.name}
-              </Link>
+              link.isSection ? (
+                <button
+                  key={link.name}
+                  onClick={() => {
+                    handleNavClick(link);
+                    setIsOpen(false);
+                  }}
+                  className="block w-full text-left text-lg font-bold text-slate-700 hover:text-primary py-3 border-b border-slate-50"
+                >
+                  {link.name}
+                </button>
+              ) : (
+                <Link
+                  key={link.name}
+                  to={link.path}
+                  className="block text-lg font-bold text-slate-700 hover:text-primary py-3 border-b border-slate-50"
+                >
+                  {link.name}
+                </Link>
+              )
             ))}
           </div>
           <div className="pt-4 mt-auto pb-8">

@@ -32,8 +32,9 @@ export function ResetPasswordPage() {
                 description: "Your password has been changed successfully. You can now login.",
                 className: "bg-green-50 border-green-200 text-green-900"
             })
-            // Redirect happens via context state change, but we can double check
-            window.location.href = "/"
+            // Redirect to login page via HashRouter-compatible URL
+            setIsPasswordRecovery(false)
+            window.location.href = window.location.origin + window.location.pathname + '#/login'
         } catch (error: any) {
             toast({ title: "Update Failed", description: error.message, variant: "destructive" })
         } finally {

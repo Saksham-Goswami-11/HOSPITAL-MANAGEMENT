@@ -301,7 +301,7 @@ export function HospitalsRegistry({ onView }: HospitalsRegistryProps) {
                         </table>
                     </div>
 
-                    {/* Fake Footer for Pagination as in mock */}
+                    {/* Table Footer */}
                     {!loading && filteredHospitals.length > 0 && (
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                             <span className="text-[11px] text-slate-500 font-medium">Showing {filteredHospitals.length} entries</span>
@@ -310,8 +310,9 @@ export function HospitalsRegistry({ onView }: HospitalsRegistryProps) {
                 </div>
             </main>
 
-            {/* Floating Action Button for adding a Hospital (Mock usage, might open a modal later) */}
+            {/* Floating Action Button for adding a Hospital */}
             <button
+                onClick={() => onView?.('register')}
                 title="Register New Hospital"
                 className="fixed bottom-10 right-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40"
             >

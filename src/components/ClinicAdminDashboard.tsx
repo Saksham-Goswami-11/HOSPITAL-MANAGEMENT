@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useHospital } from '@/context/HospitalContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
 
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos';
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'shift-management';
 
 interface ClinicAdminDashboardProps {
     clinicId: string;
@@ -17,27 +18,45 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
     const { inventory, managedClinic } = useHospital()
     const [stats, setStats] = useState({ revenue: 0, transactions: 0, staffCount: 0 })
     const [dailySales, setDailySales] = useState<any[]>([])
+    const [weeklyData, setWeeklyData] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [clinicData, setClinicData] = useState<any>(managedClinic || null)
     const [managerName, setManagerName] = useState<string>('Unassigned')
+    const [searchQuery, setSearchQuery] = useState('')
+    const [dateRange, setDateRange] = useState<'week' | 'month'>('week')
+
+
+    const filteredTransactions = useMemo(() => {
+        if (!searchQuery.trim()) return dailySales;
+        const q = searchQuery.toLowerCase();
+        return dailySales.filter((t: any) =>
+            t.patient_name?.toLowerCase().includes(q) ||
+            t.doctor_name?.toLowerCase().includes(q) ||
+            t.sale_type?.toLowerCase().includes(q)
+        );
+    }, [dailySales, searchQuery]);
+
 
     // Receipt View State
     const [selectedReceiptSale, setSelectedReceiptSale] = useState<any>(null)
     const [selectedReceiptItems, setSelectedReceiptItems] = useState<any[]>([])
     const [isReceiptLoading, setIsReceiptLoading] = useState(false)
 
+    // Stock Detail Popup State
+    const [selectedStockItem, setSelectedStockItem] = useState<any>(null)
+
     // Filtered Inventory for this clinic
-    const clinicInventory = inventory.filter(i => i.clinic_id === clinicId)
-    const lowStock = clinicInventory.filter(i => i.quantity < i.threshold)
+    const clinicInventory = inventory.filter((i: any) => i.clinic_id === clinicId)
+    const lowStock = clinicInventory.filter((i: any) => i.quantity < i.threshold)
 
     useEffect(() => {
         fetchData()
-    }, [clinicId, managedClinic])
+    }, [clinicId, managedClinic, dateRange])
 
     const fetchData = async () => {
         setLoading(true)
 
-        // 1. Clinic Details (Use Context if available, else fetch)
+        // 1. Clinic Details
         if (managedClinic && managedClinic.id === clinicId) {
             setClinicData(managedClinic)
         } else if (!clinicData) {
@@ -49,35 +68,69 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
             if (clinic) setClinicData(clinic)
         }
 
-        const today = new Date().toISOString().split('T')[0]
+        const today = new Date()
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
 
-        // 2. Revenue (Fetch full details)
-        const { data: salesData } = await supabase
+        const rangeDays = dateRange === 'week' ? 7 : 30
+        const startDate = new Date()
+        startDate.setDate(startDate.getDate() - rangeDays)
+        startDate.setHours(0, 0, 0, 0)
+
+        // 2. Revenue & Historic Data
+        const { data: allSales } = await supabase
             .from('sales')
             .select('*')
             .eq('clinic_id', clinicId)
-            .gte('timestamp', `${today}T00:00:00`)
-            .order('timestamp', { ascending: false })
+            .gte('timestamp', startDate.toISOString())
+            .order('timestamp', { ascending: true })
 
-        if (salesData) {
-            setDailySales(salesData)
+        if (allSales) {
+            // Filter today's sales for the log
+            const todaySales = allSales.filter((s: any) => s.timestamp >= startOfDay).reverse()
+            setDailySales(todaySales)
+
+            const revenue = todaySales.reduce((sum: number, s: any) => sum + (s.amount || 0), 0)
+            const transactions = todaySales.length
+
+            // Aggregate binary weekly data
+            const chartMap = new Map()
+
+            // Initialize range days
+            for (let i = rangeDays - 1; i >= 0; i--) {
+                const d = new Date()
+                d.setDate(d.getDate() - i)
+                const dateKey = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                chartMap.set(dateKey, { name: dateKey, visits: 0, revenue: 0 })
+            }
+
+            allSales.forEach((sale: any) => {
+                const d = new Date(sale.timestamp)
+                const dateKey = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                if (chartMap.has(dateKey)) {
+                    const current = chartMap.get(dateKey)
+                    chartMap.set(dateKey, {
+                        ...current,
+                        visits: current.visits + 1,
+                        revenue: current.revenue + (sale.amount || 0)
+                    })
+                }
+            })
+
+            setWeeklyData(Array.from(chartMap.values()))
+
+            // 3. Update Stats
+            const { count } = await supabase
+                .from('staff_details')
+                .select('*', { count: 'exact', head: true })
+                .eq('clinic_id', clinicId)
+                .eq('status', 'Active')
+
+            setStats({
+                revenue,
+                transactions,
+                staffCount: count || 0
+            })
         }
-
-        const revenue = salesData?.reduce((sum, s) => sum + (s.amount || 0), 0) || 0
-        const transactions = salesData?.length || 0
-
-        // 3. Staff Count
-        const { count } = await supabase
-            .from('staff_details')
-            .select('*', { count: 'exact', head: true })
-            .eq('clinic_id', clinicId)
-            .eq('status', 'Active')
-
-        setStats({
-            revenue,
-            transactions,
-            staffCount: count || 0
-        })
 
         // 4. Fetch the real manager's name
         const { data: managerData } = await supabase
@@ -88,26 +141,20 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
             .limit(1)
             .single()
 
-        if (managerData) {
-            setManagerName(managerData.full_name)
-        }
+        if (managerData) setManagerName(managerData.full_name)
 
         setLoading(false)
     }
 
     const openReceipt = async (sale: any) => {
-        // Always open the modal immediately with the sale data
         setSelectedReceiptSale(sale);
         setSelectedReceiptItems([]);
         setIsReceiptLoading(true);
-
         try {
-            // Best-effort: fetch associated items for pharmacy sales
             const { data: itemsData, error } = await supabase
                 .from('sale_items')
                 .select('quantity, price, inventory(item_name)')
                 .eq('sale_id', sale.id);
-
             if (!error && itemsData) {
                 const formattedItems = itemsData.map((item: any) => ({
                     item_name: (Array.isArray(item.inventory) ? item.inventory[0]?.item_name : item.inventory?.item_name) || 'Unknown Item',
@@ -133,7 +180,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-[1600px] mx-auto">
-            {/* HEADER AREA */}
+            {/* ... (Header and Top Cards remain same until Activity Overview) ... */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     {onBack && (
@@ -161,12 +208,16 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                 </div>
                 <div className="relative w-full sm:w-96">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
-                    <input className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm" placeholder="Search patients, staff, or inventory..." type="text" />
+                    <input
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
+                        placeholder="Search patients, staff, or inventory..."
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                 </div>
             </div>
 
-            {/* TOP CARDS */}
-            {/* Receipt Modal Viewer (Moved outside parent dialog for z-index layering) */}
             {selectedReceiptSale && (
                 <ReceiptModal
                     open={!!selectedReceiptSale}
@@ -175,9 +226,8 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                     items={selectedReceiptItems}
                 />
             )}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                {/* Revenue Card - using Dialog to keep historic txn logic */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Dialog>
                     <DialogTrigger asChild>
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer group">
@@ -194,19 +244,27 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 </div>
                                 <h3 className="text-3xl font-bold mt-1 text-slate-900">₹{stats.revenue.toLocaleString()}</h3>
                             </div>
-                            <div className="mt-6 h-12 w-full flex items-end gap-1">
-                                <div className="flex-1 bg-blue-100 rounded-t h-[40%]"></div>
-                                <div className="flex-1 bg-blue-100 rounded-t h-[60%]"></div>
-                                <div className="flex-1 bg-blue-100 rounded-t h-[50%]"></div>
-                                <div className="flex-1 bg-blue-200 rounded-t h-[80%]"></div>
-                                <div className="flex-1 bg-blue-100 rounded-t h-[45%]"></div>
-                                <div className="flex-1 bg-blue-500 rounded-t h-[100%]"></div>
-                                <div className="flex-1 bg-blue-300 rounded-t h-[70%]"></div>
+                            <div className="mt-6 h-12 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={weeklyData}>
+                                        <Bar
+                                            dataKey="revenue"
+                                            radius={[4, 4, 0, 0]}
+                                        >
+                                            {weeklyData.map((_: any, index: number) => (
+                                                <Cell
+                                                    key={`cell-${index}`}
+                                                    fill="#3b82f6"
+                                                    opacity={index === weeklyData.length - 1 ? 1 : 0.3}
+                                                />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </DialogTrigger>
 
-                    {/* Transactions Modal */}
                     <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col bg-white text-slate-900 rounded-2xl border-0 shadow-2xl">
                         <DialogHeader className="border-b border-slate-100 pb-4">
                             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
@@ -215,8 +273,8 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                             </DialogTitle>
                         </DialogHeader>
                         <div className="flex-1 overflow-auto mt-4 pr-2">
-                            {dailySales.length === 0 ? (
-                                <div className="text-center py-12 text-slate-500 font-medium">No transactions recorded today.</div>
+                            {filteredTransactions.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 font-medium">No transactions found.</div>
                             ) : (
                                 <div className="rounded-xl border border-slate-200 overflow-hidden">
                                     <table className="w-full text-sm text-left">
@@ -231,7 +289,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {dailySales.map(sale => (
+                                            {filteredTransactions.map((sale: any) => (
                                                 <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-5 py-4 text-slate-500 font-mono text-xs">
                                                         {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -277,7 +335,6 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                     </DialogContent>
                 </Dialog>
 
-                {/* Staff Card */}
                 <div onClick={() => onNavigate?.('staff')} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer">
                     <div>
                         <div className="flex justify-between items-start mb-4">
@@ -300,7 +357,6 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                     </div>
                 </div>
 
-                {/* Alerts Card */}
                 <div onClick={() => onNavigate?.('inventory-dashboard')} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer">
                     <div>
                         <div className="flex justify-between items-start mb-4">
@@ -325,7 +381,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                 </div>
             </div>
 
-            {/* ACTIVITY OVERVIEW CHART (Visual only matching HTML) */}
+            {/* ACTIVITY OVERVIEW CHART (ACTUAL RECHARTS IMPLEMENTATION) */}
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200/60 hidden md:block">
                 <div className="flex items-center justify-between mb-8">
                     <div>
@@ -333,35 +389,65 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                         <p className="text-sm text-slate-500 mt-1">Weekly patient visits and consultation volume</p>
                     </div>
                     <div className="flex gap-2">
-                        <button className="px-4 py-2 text-xs font-bold bg-slate-100 text-slate-900 rounded-lg hover:bg-slate-200 transition-colors shadow-sm">Week</button>
-                        <button className="px-4 py-2 text-xs font-bold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">Month</button>
+                        <button
+                            onClick={() => setDateRange('week')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg shadow-sm transition-colors ${dateRange === 'week' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                        >
+                            Week
+                        </button>
+                        <button
+                            onClick={() => setDateRange('month')}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg shadow-sm transition-colors ${dateRange === 'month' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                        >
+                            Month
+                        </button>
                     </div>
                 </div>
-                <div className="relative h-[300px] w-full mt-4">
-                    <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
-                        <defs>
-                            <linearGradient id="chartGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                                <stop offset="0%" stopColor="rgba(37, 99, 235, 0.15)"></stop>
-                                <stop offset="100%" stopColor="rgba(37, 99, 235, 0)"></stop>
-                            </linearGradient>
-                        </defs>
-                        <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="1000" y1="0" y2="0"></line>
-                        <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="1000" y1="75" y2="75"></line>
-                        <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="1000" y1="150" y2="150"></line>
-                        <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="1000" y1="225" y2="225"></line>
-                        <line stroke="#f1f5f9" strokeWidth="1" x1="0" x2="1000" y1="300" y2="300"></line>
-                        <path d="M0,250 Q150,180 300,220 T600,120 T1000,180 L1000,300 L0,300 Z" fill="url(#chartGradient)"></path>
-                        <path d="M0,250 Q150,180 300,220 T600,120 T1000,180" fill="none" stroke="#2563eb" strokeLinecap="round" strokeWidth="3"></path>
-                        <circle cx="0" cy="250" fill="white" r="4" stroke="#2563eb" strokeWidth="2"></circle>
-                        <circle cx="300" cy="220" fill="white" r="4" stroke="#2563eb" strokeWidth="2"></circle>
-                        <circle cx="600" cy="120" fill="white" r="4" stroke="#2563eb" strokeWidth="2"></circle>
-                        <circle cx="1000" cy="180" fill="white" r="4" stroke="#2563eb" strokeWidth="2"></circle>
-                    </svg>
-                    <div className="absolute bottom-0 w-full flex justify-between px-2 pt-4 border-t border-slate-100">
-                        {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                            <span key={day} className="text-[10px] font-bold text-slate-400">{day}</span>
-                        ))}
-                    </div>
+
+                <div className="h-[300px] w-full mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1} />
+                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="name"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                                dy={10}
+                            />
+                            <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: '#fff',
+                                    borderRadius: '12px',
+                                    border: '1px solid #e2e8f0',
+                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                    fontSize: '12px'
+                                }}
+                                itemStyle={{ fontWeight: 700 }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="visits"
+                                stroke="#2563eb"
+                                strokeWidth={3}
+                                fillOpacity={1}
+                                fill="url(#colorVisits)"
+                                animationDuration={1500}
+                                name="Patient Visits"
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
 
@@ -383,8 +469,8 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                         </button>
 
                         {/* Staff Roster Shortcut */}
-                        <button onClick={() => onNavigate?.('staff')} className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-200/50 group">
-                            <span className="material-symbols-outlined text-slate-500 text-2xl group-hover:text-blue-600 transition-colors">calendar_month</span>
+                        <button onClick={() => onNavigate?.('shift-management')} className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-200/50 group">
+                            <span className="material-symbols-outlined text-slate-500 text-2xl group-hover:text-blue-600 transition-colors">schedule</span>
                             <span className="text-sm font-semibold">Shift Roster</span>
                         </button>
                     </div>
@@ -399,30 +485,36 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                     </div>
                     <div className="space-y-2 overflow-y-auto pr-2 no-scrollbar flex-1">
                         {dailySales.slice(0, 3).map(sale => (
-                            <div key={sale.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                            <div
+                                key={sale.id}
+                                onClick={() => openReceipt(sale)}
+                                className="flex items-center gap-4 p-3 hover:bg-blue-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-blue-100 group"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 transition-transform">
                                     <span className="material-symbols-outlined text-[18px]">receipt_long</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-900 truncate">Payment Received: ₹{sale.amount?.toLocaleString()}</p>
+                                    <p className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-700">Payment Received: ₹{sale.amount?.toLocaleString()}</p>
                                     <p className="text-xs text-slate-500 font-medium truncate">Sale by {sale.doctor_name}</p>
                                 </div>
-                                <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">
-                                    {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                <span className="text-[10px] font-bold text-blue-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">View Receipt →</span>
                             </div>
                         ))}
 
                         {lowStock.slice(0, 3).map(item => (
-                            <div key={item.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-                                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 shrink-0">
+                            <div
+                                key={item.id}
+                                onClick={() => setSelectedStockItem(item)}
+                                className="flex items-center gap-4 p-3 hover:bg-orange-50/50 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-orange-100 group"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 shrink-0 group-hover:scale-105 transition-transform">
                                     <span className="material-symbols-outlined text-[18px]">priority_high</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-900 truncate">Low Stock Alert</p>
+                                    <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700">Low Stock Alert</p>
                                     <p className="text-xs text-slate-500 font-medium truncate">{item.item_name} • {item.quantity} units left</p>
                                 </div>
-                                <span className="text-[10px] font-bold text-orange-400 whitespace-nowrap">ACTION REQUIRED</span>
+                                <span className="text-[10px] font-bold text-orange-400 whitespace-nowrap">Details →</span>
                             </div>
                         ))}
 
@@ -432,6 +524,79 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                     </div>
                 </div>
             </div>
+
+            {/* LOW STOCK DETAIL MODAL */}
+            <Dialog open={!!selectedStockItem} onOpenChange={(open) => !open && setSelectedStockItem(null)}>
+                <DialogContent className="sm:max-w-md bg-white border border-slate-200 shadow-2xl p-0 overflow-hidden rounded-2xl">
+                    {selectedStockItem && (
+                        <div>
+                            {/* Header */}
+                            <div className="p-6 bg-orange-50 border-b border-orange-100 flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-white shadow-sm border border-orange-100 flex items-center justify-center text-orange-600">
+                                    <span className="material-symbols-outlined text-2xl">medication</span>
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-xl font-bold text-slate-900">Low Stock Alert</DialogTitle>
+                                    <p className="text-xs text-orange-600 font-bold uppercase tracking-wider mt-0.5">Immediate Restock Required</p>
+                                </div>
+                            </div>
+
+                            {/* Body */}
+                            <div className="p-6 space-y-4">
+                                <div className="flex items-center gap-3 p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                                    <span className="material-symbols-outlined text-orange-600">warning</span>
+                                    <div>
+                                        <p className="font-bold text-slate-900">{selectedStockItem.item_name}</p>
+                                        {selectedStockItem.batch_number && (
+                                            <p className="text-xs text-slate-500 font-mono mt-0.5">Batch: {selectedStockItem.batch_number}</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">In Stock</p>
+                                        <p className="text-2xl font-bold text-orange-600 mt-1">{selectedStockItem.quantity}</p>
+                                        <p className="text-[10px] text-slate-400">units left</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Threshold</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{selectedStockItem.threshold || 10}</p>
+                                        <p className="text-[10px] text-slate-400">min. units</p>
+                                    </div>
+                                    <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-center">
+                                        <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Deficit</p>
+                                        <p className="text-2xl font-bold text-red-600 mt-1">{Math.max(0, (selectedStockItem.threshold || 10) - selectedStockItem.quantity)}</p>
+                                        <p className="text-[10px] text-red-400">units short</p>
+                                    </div>
+                                </div>
+
+                                {/* Stock level progress bar */}
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+                                        <span>Stock Level</span>
+                                        <span className="text-orange-600">{Math.round((selectedStockItem.quantity / (selectedStockItem.threshold || 10)) * 100)}% of threshold</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="h-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 transition-all"
+                                            style={{ width: `${Math.min(100, Math.round((selectedStockItem.quantity / (selectedStockItem.threshold || 10)) * 100))}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => { setSelectedStockItem(null); onNavigate?.('inventory-dashboard') }}
+                                    className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors text-sm flex items-center justify-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">inventory</span>
+                                    Go to Inventory to Restock
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

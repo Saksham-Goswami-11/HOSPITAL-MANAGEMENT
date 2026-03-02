@@ -6,6 +6,7 @@ import Offers from '@/components/landing/Offers';
 import FeaturesGrid from '@/components/landing/FeaturesGrid';
 import Footer from '@/components/landing/Footer';
 import AIInsightsSection from '@/components/landing/AIInsightsSection';
+import PricingSection from '@/components/landing/PricingSection';
 
 const ScrollToTop = () => {
     const { pathname } = useLocation();
@@ -25,6 +26,7 @@ const LandingPage: React.FC = () => {
                 <Offers />
                 <FeaturesGrid />
                 <AIInsightsSection />
+                <PricingSection />
             </main>
             <Footer />
         </div>

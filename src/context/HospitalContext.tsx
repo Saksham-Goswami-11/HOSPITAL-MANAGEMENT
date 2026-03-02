@@ -1,6 +1,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSubscription, SubscriptionContextValue } from '@/hooks/useSubscription';
 
 // Define Types
 type Profile = {
@@ -61,6 +62,8 @@ interface HospitalContextType {
     updateClinicSettings: (clinicId: string, settings: Record<string, any>) => Promise<void>;
     updateHospitalProfile: (hospitalId: string, updates: Partial<Hospital>) => Promise<void>;
     updateClinicProfile: (clinicId: string, updates: Partial<Clinic>) => Promise<void>;
+    // Subscription & Billing
+    billing: SubscriptionContextValue;
 }
 
 // Create Context
@@ -77,11 +80,24 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
+    // Subscription & Billing
+    const billing = useSubscription(profile?.hospital_id);
+
     // Initial Load
     useEffect(() => {
         // 1. Check active session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
+
+            // Detect password recovery from URL hash fragment
+            // Supabase appends #access_token=...&type=recovery to the redirect URL
+            const hashFragment = window.location.hash;
+            // The hash may contain both a route (e.g. #/) and Supabase params
+            // Look for type=recovery anywhere in the hash
+            if (hashFragment.includes('type=recovery')) {
+                setIsPasswordRecovery(true);
+            }
+
             if (session) fetchProfile(session.user.id);
             else setLoading(false);
         });
@@ -308,7 +324,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     // --- PASSWORD RECOVERY HELPERS ---
     const requestPasswordReset = async (email: string) => {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: window.location.origin,
+            redirectTo: `${window.location.origin}${window.location.pathname}`,
         });
         if (error) throw error;
     };
@@ -341,7 +357,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             updateHospitalSettings,
             updateClinicSettings,
             updateHospitalProfile,
-            updateClinicProfile
+            updateClinicProfile,
+            billing
         }}
         >
             {children}

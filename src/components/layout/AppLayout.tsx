@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useHospital } from '@/context/HospitalContext'
 import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
+import { TrialBanner, PastDueBanner, ReadOnlyBanner } from '@/components/billing'
 
 interface AppLayoutProps {
     children: React.ReactNode
@@ -108,10 +109,24 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                icon="schedule"
+                                label="Shift Management"
+                                active={view === 'shift-management'}
+                                onClick={() => setView('shift-management')}
+                                disabled={lockNavigation}
+                            />
+                            <NavItem
                                 icon="account_balance_wallet"
                                 label="Earnings"
                                 active={view === 'earnings'}
                                 onClick={() => setView('earnings')}
+                                disabled={lockNavigation}
+                            />
+                            <NavItem
+                                icon="receipt_long"
+                                label="Subscription & Billing"
+                                active={view === 'billing'}
+                                onClick={() => setView('billing')}
                                 disabled={lockNavigation}
                             />
 
@@ -150,6 +165,13 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={false}
                             />
                             <NavItem
+                                icon="schedule"
+                                label="Shift Management"
+                                active={view === 'shift-management'}
+                                onClick={() => setView('shift-management')}
+                                disabled={false}
+                            />
+                            <NavItem
                                 icon="inventory"
                                 label="Inventory Control"
                                 active={view === 'inventory-dashboard'}
@@ -179,6 +201,12 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 label="Audit Logs"
                                 active={view === 'audit_logs'}
                                 onClick={() => setView('audit_logs')}
+                            />
+                            <NavItem
+                                icon="payments"
+                                label="Platform Billing"
+                                active={view === 'billing'}
+                                onClick={() => setView('billing')}
                             />
                         </>
                     )}
@@ -264,6 +292,14 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                         but we can provide a container for them if needed later. */}
                     </div>
                 </header>
+
+                {/* BILLING BANNERS */}
+                <TrialBanner
+                    onUpgradeClick={() => setView('billing')}
+                    onExtendClick={() => setView('billing')}
+                />
+                <PastDueBanner onUpgradeClick={() => setView('billing')} />
+                <ReadOnlyBanner onUpgradeClick={() => setView('billing')} />
 
                 {/* SCROLLABLE INNER CONTENT */}
                 <div className="flex-1 p-4 lg:p-8 max-w-[1600px] w-full mx-auto">

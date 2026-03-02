@@ -15,22 +15,28 @@ import { HospitalDetails } from '@/components/HospitalDetails';
 import { AuditLogs } from '@/components/AuditLogs';
 import { POSDashboard } from '@/components/POSDashboard';
 import { ClinicAttendance } from '@/components/ClinicAttendance';
+import { ShiftManagement } from '@/components/ShiftManagement';
+import { HospitalShiftManagement } from '@/components/HospitalShiftManagement';
 import { EarningsDashboard } from '@/components/EarningsDashboard';
 import { SettingsDashboard } from '@/components/SettingsDashboard';
-import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '@/pages/LandingPage';
+import { RegisterPage } from '@/components/RegisterPage';
+import { BillingOverview, SubscriptionDashboard } from '@/components/billing';
+import AboutPage from '@/pages/AboutPage';
+import NewsPage from '@/pages/NewsPage';
+import ContactPage from '@/pages/ContactPage';
 
 import { Loader2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/basic'
 import { Toaster } from '@/components/ui/toaster'
 
 // View types
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings'
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management'
 
 
 function AppContent() {
     const { session, profile, loading } = useHospital();
-    const navigate = useNavigate();
     const [view, setView] = useState<View>(() => {
         const savedView = localStorage.getItem('lastActiveView') as View
         return savedView || 'selection'
@@ -100,12 +106,20 @@ function AppContent() {
 
     const handleLogout = async () => {
         try {
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: 'global' });
+        } catch (err) {
+            console.warn('Sign out error:', err);
         } finally {
+            // Clear all session-related localStorage (Supabase stores tokens here)
             localStorage.removeItem('lastActiveView');
-            navigate('/');
-            // Force a slight delay before reload to ensure router catches the state change if needed
-            setTimeout(() => window.location.reload(), 100);
+            // Remove Supabase auth tokens from localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('sb-') || key.includes('supabase')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            // Hard redirect to fully reset app state (avoids stale React state)
+            window.location.href = window.location.origin + window.location.pathname + '#/login';
         }
     }
 
@@ -146,10 +160,23 @@ function AppContent() {
 
             {/* ATTENDANCE DASHBOARD */}
             {view === 'attendance' && selectedClinicId && (
-                <ClinicAttendance clinicId={selectedClinicId} />
+                <ClinicAttendance clinicId={selectedClinicId} onNavigate={(v) => setView(v as View)} />
             )}
             {view === 'attendance' && profile?.role === 'CLINIC_ADMIN' && profile.clinic_id && (
-                <ClinicAttendance clinicId={profile.clinic_id} />
+                <ClinicAttendance clinicId={profile.clinic_id} onNavigate={(v) => setView(v as View)} />
+            )}
+
+            {/* SHIFT MANAGEMENT */}
+            {view === 'shift-management' && (
+                (['HOSPITAL_ADMIN', 'ADMIN'].includes(profile?.role || '')) ? (
+                    <HospitalShiftManagement />
+                ) : (
+                    profile?.clinic_id ? (
+                        <ShiftManagement clinicId={profile.clinic_id} />
+                    ) : (
+                        <div className="p-12 text-center text-slate-500">No Clinic Selected</div>
+                    )
+                )
             )}
 
             {/* DASHBOARD ROUTER (3-TIER LOGIC) */}
@@ -238,6 +265,16 @@ function AppContent() {
                 <AuditLogs />
             )}
 
+            {view === 'billing' && (
+                <div className="max-w-4xl mx-auto">
+                    {['SUPER_ADMIN', 'OWNER'].includes(profile?.role || '') ? (
+                        <BillingOverview />
+                    ) : (
+                        <SubscriptionDashboard />
+                    )}
+                </div>
+            )}
+
 
             {view === 'settings' && (
                 <SettingsDashboard />
@@ -272,7 +309,11 @@ function AppRouter() {
         <Router>
             <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/news" element={<NewsPage />} />
+                <Route path="/contact" element={<ContactPage />} />
                 <Route path="/login" element={session ? <Navigate to="/app" /> : <LoginPage />} />
+                <Route path="/register" element={session ? <Navigate to="/app" /> : <RegisterPage />} />
                 <Route path="/app/*" element={session ? <AppContent /> : <Navigate to="/login" />} />
                 <Route path="*" element={<Navigate to="/" />} />
             </Routes>

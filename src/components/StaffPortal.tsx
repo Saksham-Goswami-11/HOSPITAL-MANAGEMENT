@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog'
 import { Button, Input, Label } from '@/components/ui/basic'
@@ -16,8 +16,28 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
     // Data State
     const [staffList, setStaffList] = useState<any[]>([])
-    const [attendanceRollup, setAttendanceRollup] = useState<{ onDuty: number }>({ onDuty: 0 })
+    const [dailyAttendance, setDailyAttendance] = useState<Record<string, any>>({})
     const [isLoading, setIsLoading] = useState(true)
+
+    // Derived State for Daily Snapshot
+    const attendanceStats = useMemo(() => {
+        const stats = {
+            onDuty: staffList.filter(s => dailyAttendance[s.id]?.status === 'PRESENT' && !dailyAttendance[s.id]?.clock_out_time).length,
+            completed: staffList.filter(s => dailyAttendance[s.id]?.status === 'PRESENT' && dailyAttendance[s.id]?.clock_out_time).length,
+            absent: staffList.filter(s => dailyAttendance[s.id]?.status === 'ABSENT').length,
+            pending: staffList.filter(s => !dailyAttendance[s.id]).length,
+            total: staffList.length
+        };
+        return stats;
+    }, [staffList, dailyAttendance]);
+
+    const groupedStaff = useMemo(() => {
+        return {
+            active: staffList.filter(s => dailyAttendance[s.id]?.status === 'PRESENT'),
+            absent: staffList.filter(s => dailyAttendance[s.id]?.status === 'ABSENT'),
+            pending: staffList.filter(s => !dailyAttendance[s.id])
+        };
+    }, [staffList, dailyAttendance]);
 
     // Form State for "Add Staff"
     const [isAddStaffOpen, setIsAddStaffOpen] = useState(false)
@@ -45,6 +65,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
     // Form State for "Attendance Log"
     const [isAttendanceLogOpen, setIsAttendanceLogOpen] = useState(false)
+    const [isAttendanceHubOpen, setIsAttendanceHubOpen] = useState(false)
     const [attendanceHistory, setAttendanceHistory] = useState<any[]>([])
     const [isHistoryLoading, setIsHistoryLoading] = useState(false)
 
@@ -86,13 +107,16 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                 const staffIds = data.map((s: any) => s.id)
                 const { data: attData } = await supabase
                     .from('staff_attendance')
-                    .select('staff_id, status')
+                    .select('*')
                     .in('staff_id', staffIds)
                     .eq('date', today)
 
                 if (attData) {
-                    const presentIds = new Set(attData.filter(a => a.status === 'PRESENT').map(a => a.staff_id))
-                    setAttendanceRollup({ onDuty: presentIds.size })
+                    const attMap: Record<string, any> = {}
+                    attData.forEach(a => {
+                        attMap[a.staff_id] = a
+                    })
+                    setDailyAttendance(attMap)
                 }
             }
         } catch (error) {
@@ -115,10 +139,12 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                 full_name: newStaff.full_name,
                 phone: newStaff.phone || null,
                 email: newStaff.email || null,
-                role: newStaff.role,
+                role: newStaff.role.toUpperCase(),
+                department: newStaff.department,
                 base_salary: newStaff.base_salary ? parseFloat(newStaff.base_salary) : 0,
                 joining_date: newStaff.joining_date || new Date().toISOString().split('T')[0]
             })
+
 
             if (error) throw error
 
@@ -147,10 +173,12 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                 full_name: editStaffData.full_name,
                 phone: editStaffData.phone || null,
                 email: editStaffData.email || null,
-                role: editStaffData.role,
+                role: editStaffData.role.toUpperCase(),
+                department: editStaffData.department,
                 base_salary: editStaffData.base_salary ? parseFloat(editStaffData.base_salary) : 0,
                 joining_date: editStaffData.joining_date || null
             }).eq('id', selectedStaff.id)
+
 
             if (error) throw error
 
@@ -291,9 +319,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
         return matchesSearch && matchesDept && matchesClinic;
     });
 
-    const totalStaff = staffList.length;
-    const pendingPayroll = 0; // Placeholder for actual calculation
-    const onDuty = attendanceRollup.onDuty;
+
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 w-full max-w-[1600px] mx-auto">
@@ -320,7 +346,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500">Total Staff</p>
-                        <p className="text-2xl font-bold">{totalStaff}</p>
+                        <p className="text-2xl font-bold">{attendanceStats.total}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center gap-5 border-l-4 border-l-green-500">
@@ -329,19 +355,164 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500">Active Duty</p>
-                        <p className="text-2xl font-bold">{onDuty}</p>
+                        <p className="text-2xl font-bold">{attendanceStats.onDuty}</p>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm flex items-center gap-5 border-l-4 border-l-orange-500">
-                    <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center">
-                        <span className="material-symbols-outlined text-2xl">pending_actions</span>
+                <button
+                    onClick={() => setIsAttendanceHubOpen(true)}
+                    className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4 hover:border-blue-200 hover:shadow-md transition-all text-left w-full group"
+                >
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                        <span className="material-symbols-outlined text-xl">hub</span>
                     </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-500">Pending Payroll</p>
-                        <p className="text-2xl font-bold">{pendingPayroll}</p>
+                    <div className="flex-1">
+                        <div className="flex justify-between items-center">
+                            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Live Attendance Hub</p>
+                            <span className="material-symbols-outlined text-slate-300 text-sm group-hover:text-blue-500 transition-colors">open_in_new</span>
+                        </div>
+                        <div className="flex gap-3 mt-0.5">
+                            <span className="text-xs font-bold text-emerald-600">● {attendanceStats.onDuty} Active</span>
+                            <span className="text-xs font-bold text-red-500">● {attendanceStats.absent} Absent</span>
+                        </div>
                     </div>
-                </div>
+                </button>
             </div>
+
+            {/* Attendance Hub Modal */}
+            <Dialog open={isAttendanceHubOpen} onOpenChange={setIsAttendanceHubOpen}>
+                <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl bg-slate-50">
+                    <DialogHeader className="p-6 bg-white border-b border-slate-100">
+                        <DialogTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                                    <span className="material-symbols-outlined">analytics</span>
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">Today's Workforce Hub</h2>
+                                    <p className="text-xs text-slate-500 font-medium">Real-time presence and absence monitoring</p>
+                                </div>
+                            </div>
+                            <div className="text-right pr-8">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Status</p>
+                                <p className="text-sm font-black text-blue-600">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+                            </div>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="p-6 overflow-y-auto max-h-[80vh]">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Present & Active */}
+                            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                                <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-50">
+                                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        Live Workforce
+                                    </h3>
+                                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full uppercase">
+                                        {attendanceStats.onDuty} Active Now
+                                    </span>
+                                </div>
+                                <div className="space-y-3">
+                                    {groupedStaff.active.length === 0 ? (
+                                        <div className="py-12 flex flex-col items-center justify-center text-slate-400">
+                                            <span className="material-symbols-outlined text-4xl mb-2 opacity-20">person_off</span>
+                                            <p className="text-xs italic">No staff currently clocked in.</p>
+                                        </div>
+                                    ) : (
+                                        groupedStaff.active.map(s => {
+                                            const record = dailyAttendance[s.id];
+                                            return (
+                                                <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50/50 hover:bg-white hover:border-blue-100 border border-transparent rounded-xl transition-all group/item">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 shadow-sm">
+                                                            {s.full_name?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-900 group-hover/item:text-blue-600 transition-colors">{s.full_name}</p>
+                                                            <p className="text-[10px] text-slate-500">{s.role.replace('_', ' ')}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] font-bold text-emerald-600">
+                                                            IN: {new Date(record.clock_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
+                                                        {record.clock_out_time ? (
+                                                            <p className="text-[10px] text-slate-400 font-medium">OUT: {new Date(record.clock_out_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1 justify-end">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                                                                <p className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">on duty</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Absent & Pending */}
+                            <div className="space-y-6">
+                                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-50">
+                                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-lg text-red-500">event_busy</span>
+                                            Absence & Records
+                                        </h3>
+                                        <span className="text-[10px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase">
+                                            {attendanceStats.absent} Absent
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {groupedStaff.absent.length === 0 ? (
+                                            <div className="py-6 flex flex-col items-center justify-center text-slate-300">
+                                                <span className="material-symbols-outlined text-3xl mb-1 opacity-20">verified_user</span>
+                                                <p className="text-[10px] font-bold italic">Full attendance today!</p>
+                                            </div>
+                                        ) : (
+                                            groupedStaff.absent.map(s => (
+                                                <div key={s.id} className="flex items-center justify-between p-3 bg-red-50/30 border border-red-100/50 rounded-xl hover:bg-white transition-all">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-[10px] font-bold text-red-600">
+                                                            {s.full_name?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-900">{s.full_name}</p>
+                                                            <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter">Marked Absent</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="px-2 py-1 bg-red-100 text-red-700 rounded-md text-[9px] font-black uppercase">
+                                                        off
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white/40 border border-slate-200 border-dashed rounded-2xl p-5">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                        Expected / Pending ({groupedStaff.pending.length})
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {groupedStaff.pending.length === 0 ? (
+                                            <p className="text-[10px] text-slate-400 italic">No pending actions.</p>
+                                        ) : (
+                                            groupedStaff.pending.map(s => (
+                                                <div key={s.id} className="text-[10px] px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg font-bold shadow-sm">
+                                                    {s.full_name}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* FILTER BAR */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex flex-wrap gap-4 items-center">
@@ -500,7 +671,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
                 {/* Pagination (Visual only for now) */}
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/30">
-                    <p className="text-sm text-slate-500 font-medium">Showing {filteredStaff.length} of {totalStaff} staff members</p>
+                    <p className="text-sm text-slate-500 font-medium">Showing {filteredStaff.length} of {attendanceStats.total} staff members</p>
                     <div className="flex gap-2">
                         <button className="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-md hover:bg-white transition-colors disabled:opacity-50" disabled>Previous</button>
                         <button className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-md">1</button>
@@ -522,15 +693,28 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                             <Label>Full Name*</Label>
                             <Input required value={newStaff.full_name} onChange={e => setNewStaff({ ...newStaff, full_name: e.target.value })} placeholder="e.g. Rahul Sharma" />
                         </div>
-                        <div className="space-y-2">
-                            <Label>Role*</Label>
-                            <select className="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50" value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
-                                <option value="CLINIC_ADMIN">Clinic Admin</option>
-                                <option value="CLINIC_STAFF">Regular Staff</option>
-                                <option value="DOCTOR">Doctor</option>
-                                <option value="NURSE">Nurse</option>
-                            </select>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Role*</Label>
+                                <select className="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50" value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
+                                    <option value="CLINIC_ADMIN">Clinic Admin</option>
+                                    <option value="CLINIC_STAFF">Regular Staff</option>
+                                    <option value="DOCTOR">Doctor</option>
+                                    <option value="NURSE">Nurse</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Department*</Label>
+                                <select className="flex h-10 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))] focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50" value={newStaff.department} onChange={e => setNewStaff({ ...newStaff, department: e.target.value })}>
+                                    <option value="">Select Dept</option>
+                                    <option value="Medical">Medical</option>
+                                    <option value="Nursing">Nursing</option>
+                                    <option value="Administration">Administration</option>
+                                    <option value="Support">Support</option>
+                                </select>
+                            </div>
                         </div>
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Phone</Label>
@@ -570,15 +754,28 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                                 <Label className="text-amber-900">Full Name*</Label>
                                 <Input required className="border-amber-300 bg-white focus:ring-amber-500" value={editStaffData.full_name} onChange={e => setEditStaffData({ ...editStaffData, full_name: e.target.value })} />
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-amber-900">Role*</Label>
-                                <select className="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500" value={editStaffData.role} onChange={e => setEditStaffData({ ...editStaffData, role: e.target.value })}>
-                                    <option value="CLINIC_ADMIN">Clinic Admin</option>
-                                    <option value="CLINIC_STAFF">Regular Staff</option>
-                                    <option value="DOCTOR">Doctor</option>
-                                    <option value="NURSE">Nurse</option>
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-amber-900">Role*</Label>
+                                    <select className="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500" value={editStaffData.role} onChange={e => setEditStaffData({ ...editStaffData, role: e.target.value })}>
+                                        <option value="CLINIC_ADMIN">Clinic Admin</option>
+                                        <option value="CLINIC_STAFF">Regular Staff</option>
+                                        <option value="DOCTOR">Doctor</option>
+                                        <option value="NURSE">Nurse</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-amber-900">Department*</Label>
+                                    <select className="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500" value={editStaffData.department} onChange={e => setEditStaffData({ ...editStaffData, department: e.target.value })}>
+                                        <option value="">Select Dept</option>
+                                        <option value="Medical">Medical</option>
+                                        <option value="Nursing">Nursing</option>
+                                        <option value="Administration">Administration</option>
+                                        <option value="Support">Support</option>
+                                    </select>
+                                </div>
                             </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-amber-900">Phone</Label>

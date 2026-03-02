@@ -3,8 +3,9 @@ import { useHospital } from '@/context/HospitalContext'
 import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Building2, Shield, Settings2, Bell, Receipt, Clock, Plug } from 'lucide-react'
+import { Building2, Shield, Settings2, Bell, Receipt, Clock, Plug, Crown, Package } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
+import { SubscriptionDashboard } from '@/components/billing'
 
 export function SettingsDashboard() {
     const {
@@ -174,6 +175,9 @@ export function SettingsDashboard() {
                             <TabsTrigger value="integrations" className="justify-start gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm border border-transparent">
                                 <Plug className="w-4 h-4" /> Integrations
                             </TabsTrigger>
+                            <TabsTrigger value="subscription" className="justify-start gap-2 data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700 data-[state=active]:shadow-sm border border-transparent">
+                                <Crown className="w-4 h-4" /> Subscription & Billing
+                            </TabsTrigger>
                         </>
                     )}
 
@@ -290,10 +294,55 @@ export function SettingsDashboard() {
                                     <CardTitle>Global Operation Policies</CardTitle>
                                     <CardDescription>Define standards applied instantly across the network.</CardDescription>
                                 </CardHeader>
-                                <div className="p-12 text-center text-slate-400 border-2 border-dashed border-slate-100 rounded-xl">
-                                    <Settings2 className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                                    <p>Policy enforcement engine coming in next update.</p>
-                                </div>
+                                <form onSubmit={handleHospitalSave} className="space-y-6 max-w-2xl">
+                                    <div className="space-y-4">
+                                        <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30">
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                                                    <Package className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-sm text-slate-900">Inventory Alert Policy</h4>
+                                                    <p className="text-xs text-slate-500">Master threshold for low-stock warnings across all clinics.</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Global Low Stock Threshold</Label>
+                                                <div className="flex items-center gap-3">
+                                                    <Input
+                                                        type="number"
+                                                        className="w-32 font-mono font-bold text-lg"
+                                                        value={hospitalSettings?.global_low_stock_threshold ?? 20}
+                                                        onChange={(e) => setHospitalSettings({ ...hospitalSettings, global_low_stock_threshold: parseInt(e.target.value) })}
+                                                    />
+                                                    <span className="text-sm text-slate-500 font-medium">Items remaining before warning</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 mt-2 italic">
+                                                    *Individual item overrides in clinic inventory will prioritize over this global value.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 border border-slate-100 rounded-xl bg-slate-50/50 opacity-60 grayscale cursor-not-allowed">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
+                                                    <Clock className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-semibold text-sm">Automated Procurement</h4>
+                                                    <p className="text-xs text-slate-500">Auto-generate purchase orders when stock is low. (Coming Soon)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-slate-100">
+                                        <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
+                                            Save Global Policies
+                                        </Button>
+                                    </div>
+                                </form>
                             </TabsContent>
 
                             <TabsContent value="integrations" className="m-0 p-6 md:p-8 animation-in fade-in slide-in-from-bottom-2">
@@ -324,6 +373,10 @@ export function SettingsDashboard() {
                                         <Button type="submit" disabled={loading} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">Update Credentials</Button>
                                     </div>
                                 </form>
+                            </TabsContent>
+
+                            <TabsContent value="subscription" className="m-0 p-6 md:p-8 animation-in fade-in slide-in-from-bottom-2">
+                                <SubscriptionDashboard />
                             </TabsContent>
                         </>
                     )}

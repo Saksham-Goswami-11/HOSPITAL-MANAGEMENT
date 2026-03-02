@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Building2, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react'
@@ -6,11 +7,32 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ui/use-toast'
 
 export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onComplete: () => void }) {
+    const [searchParams] = useSearchParams()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
+
+    // Get plan from URL (primary) or user metadata (fallback)
+    const urlPlan = searchParams.get('plan')
+    const urlBilling = searchParams.get('billing')
+    const metaPlan = userProfile?.user_metadata?.onboarding_plan
+    const metaBilling = userProfile?.user_metadata?.onboarding_billing
+
+    const selectedPlan = urlPlan || metaPlan || 'free'
+    const selectedBilling = urlBilling || metaBilling || 'monthly'
+
     // If user has no hospital_id, start at 'hospital' step, otherwise 'clinic'
     const [step, setStep] = useState<'hospital' | 'clinic'>(userProfile?.hospital_id ? 'clinic' : 'hospital')
     const [localHospitalId, setLocalHospitalId] = useState<string | null>(userProfile?.hospital_id || null)
+
+    // Ensure user role is HOSPITAL_ADMIN for self-service
+    useEffect(() => {
+        const fixRole = async () => {
+            if (userProfile && userProfile.role !== 'HOSPITAL_ADMIN' && userProfile.role !== 'SUPER_ADMIN') {
+                await supabase.from('profiles').update({ role: 'HOSPITAL_ADMIN' }).eq('id', userProfile.id);
+            }
+        };
+        fixRole();
+    }, [userProfile]);
 
     async function handleHospitalSetup(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -21,31 +43,24 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
         const color = formData.get('branding_color') as string
 
         try {
-            // 1. Create Hospital
-            const { data: hospital, error: hospError } = await supabase
-                .from('hospitals')
-                .insert({
-                    name,
-                    slug,
-                    branding_color: color,
-                    owner_id: userProfile.id
-                })
-                .select()
-                .single()
+            // Use the secure RPC to initialize the hospital onboarding
+            // This bypasses RLS for the initial setup and ensures atomicity
+            const planSlug = selectedPlan === 'free' ? 'starter' : selectedPlan;
 
-            if (hospError) throw hospError
+            const { data: hospitalId, error: setupError } = await supabase.rpc('initialize_hospital_onboarding', {
+                p_name: name,
+                p_slug: slug,
+                p_branding_color: color,
+                p_owner_id: userProfile.id,
+                p_plan_slug: planSlug,
+                p_billing_cycle: selectedBilling
+            });
 
-            // 2. Link to Profile
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .update({ hospital_id: hospital.id })
-                .eq('id', userProfile.id)
+            if (setupError) throw setupError;
 
-            if (profileError) throw profileError
-
-            // 3. Update State & Move Next
-            userProfile.hospital_id = hospital.id
-            setLocalHospitalId(hospital.id)
+            // 3. Update Local State & Prepare to Move Next
+            userProfile.hospital_id = hospitalId
+            setLocalHospitalId(hospitalId)
             setStep('clinic')
             toast({ title: 'Hospital Created', description: 'Now let\'s set up your first clinic.' })
 
