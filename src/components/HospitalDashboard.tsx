@@ -614,7 +614,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
 
                     {/* Chart Area */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[400px] lg:h-[450px]">
-                        <div className="lg:col-span-7 h-full relative">
+                        <div className="lg:col-span-7 h-[350px] md:h-full relative">
                             {analyticsLoading ? (
                                 <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10 transition-opacity">
                                     <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -654,9 +654,9 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                             </defs>
                                             <Pie
                                                 data={displayData}
-                                                innerRadius="65%"
-                                                outerRadius="85%"
-                                                paddingAngle={8}
+                                                innerRadius="60%"
+                                                outerRadius="80%"
+                                                paddingAngle={5}
                                                 dataKey="value"
                                                 stroke="none"
                                                 animationBegin={0}
