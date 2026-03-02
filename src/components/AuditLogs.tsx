@@ -94,15 +94,15 @@ export function AuditLogs() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-80px)] animate-in fade-in duration-500 max-w-[1600px] mx-auto bg-[#F1F5F9]">
-            {/* Header */}
-            <header className="shrink-0 bg-white border border-slate-200 rounded-t-2xl px-6 py-4 flex items-center justify-between shadow-sm z-20">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-[#0F172A] rounded-md flex items-center justify-center text-white">
-                        <span className="material-symbols-outlined text-2xl">shield_with_heart</span>
+            {/* Sub-Header Area */}
+            <div className="h-16 border-b border-gray-100 px-6 md:px-8 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-0 bg-white shadow-sm shrink-0 rounded-t-2xl">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white shadow-lg">
+                        <span className="material-symbols-outlined text-[20px]">security</span>
                     </div>
                     <div>
-                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">Enterprise System Audit Logs</h1>
-                        <p className="text-xs text-slate-500 font-medium">SaaS Security Infrastructure & Compliance</p>
+                        <h2 className="text-lg font-bold text-slate-900 tracking-tight">Security Audit Logs</h2>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">System Monitoring</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -119,7 +119,7 @@ export function AuditLogs() {
                         <span>Export to CSV</span>
                     </button>
                 </div>
-            </header>
+            </div>
 
             {/* Main Content Area */}
             <div className="flex flex-1 overflow-hidden border-x border-b border-slate-200 rounded-b-2xl bg-white shadow-sm">

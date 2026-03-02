@@ -181,36 +181,34 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-[1600px] mx-auto">
             {/* ... (Header and Top Cards remain same until Activity Overview) ... */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200/60 pb-8">
                 <div>
-                    {onBack && (
-                        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors mb-2">
-                            <span className="material-symbols-outlined text-lg">arrow_back</span>
-                            Back to Network View
-                        </button>
-                    )}
-                    <div className="flex items-center gap-4">
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{clinicData?.name || 'Clinic Dashboard'}</h1>
-                        <div className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-green-100">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                            Live System
+                    <div className="flex items-center gap-3">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-all mr-1"
+                                title="Back to Network"
+                            >
+                                <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                            </button>
+                        )}
+                        <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <span className="material-symbols-outlined text-[20px]">account_balance</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{clinicData?.name || 'Clinic Dashboard'}</h2>
+                            <p className="text-sm text-slate-500 font-medium truncate">
+                                {clinicData?.location || 'Operational Overview'} • Managed by {managerName}
+                            </p>
                         </div>
                     </div>
-                    <p className="text-slate-500 mt-1 flex items-center gap-2 text-sm">
-                        {clinicData?.hospital_name && (
-                            <span className="font-medium text-slate-700">{clinicData.hospital_name}</span>
-                        )}
-                        {clinicData?.hospital_name && <span>•</span>}
-                        {clinicData?.location && <span>{clinicData.location}</span>}
-                        {(clinicData?.hospital_name || clinicData?.location) && <span>•</span>}
-                        <span>Managed by {managerName}</span>
-                    </p>
                 </div>
-                <div className="relative w-full sm:w-96">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+                <div className="relative w-full md:w-80">
+                    <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
                     <input
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
-                        placeholder="Search patients, staff, or inventory..."
+                        className="w-full pl-11 pr-5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm placeholder:text-slate-400"
+                        placeholder="Search records..."
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}

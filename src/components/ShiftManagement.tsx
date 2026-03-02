@@ -331,13 +331,17 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* HEADER */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200/60 pb-8">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                        <div className="w-2 h-8 bg-blue-600 rounded-full" />
-                        Shift Management
-                    </h2>
-                    <p className="text-sm text-slate-500 mt-1">Create shift templates and assign staff to time slots</p>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <span className="material-symbols-outlined text-[20px]">schedule</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Shift Operations</h2>
+                            <p className="text-sm text-slate-500 font-medium">Manage staff schedules and attendance windows</p>
+                        </div>
+                    </div>
                 </div>
 
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

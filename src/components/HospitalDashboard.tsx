@@ -286,10 +286,17 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* WELCOME SECTION */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-slate-200/60 pb-6">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-200/60 pb-8">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{hospital?.name || 'Hospital Dashboard'}</h1>
-                    <h2 className="text-2xl font-semibold text-slate-700 mt-1">Hospital Dashboard</h2>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{hospital?.name}</h2>
+                            <p className="text-sm text-slate-500 font-medium">Network Operations Overview</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">

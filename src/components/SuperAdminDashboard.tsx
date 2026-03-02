@@ -184,20 +184,19 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
     return (
         <div className="flex flex-col min-h-screen bg-white animate-in fade-in duration-500 w-full max-w-[1600px] mx-auto">
 
-            {/* Header Area */}
-            <header className="h-20 border-b border-gray-100 px-6 md:px-8 flex flex-col md:flex-row md:items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-30 gap-4 md:gap-0 pt-4 md:pt-0">
-                <div>
-                    <h1 className="text-xl font-bold text-gray-900 leading-tight">SaaS Command Center</h1>
-                    <div className="flex items-center gap-6 mt-2">
+            {/* Sub-Header Area */}
+            <div className="h-16 border-b border-gray-100 px-6 md:px-8 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-0 bg-white shadow-sm">
+                <div className="flex items-center gap-8 h-full">
+                    <div className="flex items-center gap-6 h-full pt-1">
                         <button
                             onClick={() => setActiveTab('overview')}
-                            className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 transition-all ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                            className={`text-sm font-bold tracking-tight h-full border-b-2 transition-all px-1 flex items-center ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                         >
                             Overview
                         </button>
                         <button
                             onClick={() => setActiveTab('subscriptions')}
-                            className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 transition-all ${activeTab === 'subscriptions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                            className={`text-sm font-bold tracking-tight h-full border-b-2 transition-all px-1 flex items-center ${activeTab === 'subscriptions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                         >
                             Subscriptions
                         </button>
@@ -281,7 +280,7 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
                         </DialogContent>
                     </Dialog>
                 </div>
-            </header>
+            </div>
 
             {/* Main Content Workspace */}
             <main className="flex-1 bg-[#FFFFFF] p-6 md:p-8 space-y-8">

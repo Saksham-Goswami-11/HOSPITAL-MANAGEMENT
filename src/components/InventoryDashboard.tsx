@@ -282,13 +282,17 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             ? "fixed inset-0 z-50 bg-slate-50 p-4 sm:p-6 lg:p-8 flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
             : "space-y-6 animate-in fade-in duration-500 max-w-[1600px] mx-auto min-h-[calc(100vh-120px)] flex flex-col pb-10 lg:pb-0"
         }>
-            {/* TOP HEADER */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200/60 pb-8 shrink-0">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-                        {hospital?.name ? `${hospital.name} Inventory` : 'Clinic Inventory'}
-                    </h2>
-                    <p className="text-slate-500 text-sm mt-1">Manage and track medical supplies across departments.</p>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Stock Management</h2>
+                            <p className="text-sm text-slate-500 font-medium">Monitoring and tracking medical supplies</p>
+                        </div>
+                    </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {!effectiveClinicId && (

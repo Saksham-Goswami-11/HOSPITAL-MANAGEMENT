@@ -264,24 +264,30 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
             <main className="flex-1 overflow-y-auto bg-white flex flex-col relative w-full">
 
                 {/* HEADER */}
-                <header className="h-16 border-b border-slate-100 flex items-center justify-between px-4 lg:px-8 sticky top-0 bg-white/80 backdrop-blur-md z-10 shrink-0">
-                    <div className="flex items-center gap-3">
-                        <button className="lg:hidden p-2 -ml-2 text-slate-400 hover:text-slate-600" onClick={() => setIsMobileMenuOpen(true)}>
-                            <span className="material-symbols-outlined">menu</span>
+                <header className="h-20 border-b border-slate-100 flex items-center justify-between px-4 lg:px-12 sticky top-0 bg-white/95 backdrop-blur-md z-30 shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button className="lg:hidden p-2.5 -ml-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
+                            <span className="material-symbols-outlined text-[24px]">menu</span>
                         </button>
-                        <h1 className="text-xl font-bold text-slate-800 capitalize hidden sm:block">
-                            {view.replace('-', ' ')}
-                        </h1>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-bold text-slate-900 tracking-tight capitalize leading-none">
+                                {view.replace('-', ' ')}
+                            </h1>
+                            <div className="flex items-center gap-2 mt-1.5 lg:hidden">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest leading-none">Live System</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="relative hidden sm:block">
+                        <div className="relative">
                             <button
-                                className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+                                className="w-11 h-11 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all relative group"
                                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                             >
-                                <span className="material-symbols-outlined">notifications</span>
-                                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                                <span className="material-symbols-outlined text-[24px]">notifications</span>
+                                <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full group-hover:scale-110 transition-transform"></span>
                             </button>
                         </div>
                         <NotificationsPanel
@@ -302,7 +308,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                 <ReadOnlyBanner onUpgradeClick={() => setView('billing')} />
 
                 {/* SCROLLABLE INNER CONTENT */}
-                <div className="flex-1 p-4 lg:p-8 max-w-[1600px] w-full mx-auto">
+                <div className="flex-1 p-4 lg:p-12 lg:pt-6 max-w-[1600px] w-full mx-auto">
                     {children}
                 </div>
             </main>
