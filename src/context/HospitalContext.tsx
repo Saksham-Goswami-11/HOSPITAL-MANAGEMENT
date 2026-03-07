@@ -124,8 +124,14 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const requiresDowngradeResolution = activeClinics.length > billing.getLimit('clinics_count');
 
     useEffect(() => {
-        auth.onAuthStateChange((user) => {
+        auth.onAuthStateChange((user, event) => {
             setSession(user);
+
+            // Handle Password Recovery Event
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsPasswordRecovery(true);
+            }
+
             if (user) {
                 fetchProfile(user.id);
             } else {

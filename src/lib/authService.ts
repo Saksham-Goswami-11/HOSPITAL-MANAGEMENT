@@ -4,7 +4,7 @@ export interface AuthService {
     signIn: (email: string, pass: string) => Promise<any>;
     signUp: (email: string, pass: string, data?: any) => Promise<any>;
     signOut: () => Promise<void>;
-    onAuthStateChange: (callback: (user: any) => void) => void;
+    onAuthStateChange: (callback: (user: any, event?: string) => void) => void;
     resetPassword: (email: string) => Promise<void>;
     updatePassword: (password: string) => Promise<void>;
     getSession: () => Promise<any>;
@@ -29,14 +29,14 @@ class SupabaseAuthService implements AuthService {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
     }
-    onAuthStateChange(callback: (user: any) => void) {
-        supabase.auth.onAuthStateChange((_event, session) => {
-            callback(session?.user || null);
+    onAuthStateChange(callback: (user: any, event?: string) => void) {
+        supabase.auth.onAuthStateChange((event, session) => {
+            callback(session?.user || null, event);
         });
     }
     async resetPassword(email: string) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/#/reset-password`,
+            redirectTo: `${window.location.origin}${window.location.pathname}#/reset-password`,
         });
         if (error) throw error;
     }

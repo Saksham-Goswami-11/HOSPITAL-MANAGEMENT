@@ -12,11 +12,11 @@ const Careers: React.FC = () => {
 
   return (
     <div className="pt-20">
-      <section className="bg-slate-900 py-24 text-center">
+      <section className="bg-slate-50 border-b border-slate-100 py-24 text-center">
         <div className="max-w-4xl mx-auto px-4">
-          <span className="text-blue-400 font-bold tracking-widest uppercase text-sm">Join the Revolution</span>
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 mt-4">Help us heal the system.</h1>
-          <p className="text-xl text-slate-400 leading-relaxed">
+          <span className="text-blue-600 font-bold tracking-widest uppercase text-sm">Join the Revolution</span>
+          <h1 className="text-5xl md:text-7xl font-bold text-slate-900 mb-6 mt-4">Help us heal the <span className="text-blue-600">system</span>.</h1>
+          <p className="text-xl text-slate-600 leading-relaxed">
             We're looking for builders, thinkers, and healers to build the operating system of healthcare.
           </p>
         </div>
@@ -28,9 +28,9 @@ const Careers: React.FC = () => {
             <h2 className="text-3xl font-bold text-slate-900">Current Openings</h2>
             <div className="relative max-w-sm w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input 
-                type="text" 
-                placeholder="Search roles..." 
+              <input
+                type="text"
+                placeholder="Search roles..."
                 className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>

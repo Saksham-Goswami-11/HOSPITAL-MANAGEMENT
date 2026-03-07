@@ -30,6 +30,8 @@ import HospitalCommandCenterPage from '@/pages/HospitalCommandCenterPage';
 import PrivacyPage from '@/pages/PrivacyPage';
 import CareersPage from '@/pages/CareersPage';
 import SupportPage from '@/pages/SupportPage';
+import { useLocation } from 'react-router-dom';
+import { logPageView } from '@/lib/analytics';
 
 import { Loader2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/basic'
@@ -286,6 +288,19 @@ function AppContent() {
     )
 }
 
+function AnalyticsTracker() {
+    const location = useLocation();
+
+    useEffect(() => {
+        // Correctly handle HashRouter paths
+        const path = location.pathname + location.search + location.hash;
+        console.log('[GA4] Logging pageview:', path); // DEBUG
+        logPageView(path);
+    }, [location]);
+
+    return null;
+}
+
 function AppRouter() {
     const { session, loading, isPasswordRecovery } = useHospital();
 
@@ -297,7 +312,9 @@ function AppRouter() {
         )
     }
 
-    if (isPasswordRecovery) {
+    const isResetPath = window.location.hash.startsWith('#/reset-password');
+
+    if (isPasswordRecovery || isResetPath) {
         return (
             <>
                 <ResetPasswordPage />
@@ -308,6 +325,7 @@ function AppRouter() {
 
     return (
         <Router>
+            <AnalyticsTracker />
             <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/about" element={<AboutPage />} />

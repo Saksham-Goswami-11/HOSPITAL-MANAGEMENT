@@ -49,18 +49,18 @@ const Hero: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110 opacity-90"
               />
 
-              {/* Light Glassmorphic Overlays */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/60 via-transparent to-primary/10 z-10 mix-blend-overlay"></div>
+              {/* Light Overlays */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/40 via-transparent to-primary/5 z-10 mix-blend-overlay"></div>
 
               <div className="absolute top-6 right-6 z-20">
-                <div className="bg-white/80 backdrop-blur px-4 py-2 rounded-lg border border-white shadow-sm flex items-center gap-2">
+                <div className="bg-white px-4 py-2 rounded-lg border border-slate-100 shadow-sm flex items-center gap-2">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                   <span className="text-slate-800 text-[10px] font-bold tracking-widest uppercase">System Live</span>
                 </div>
               </div>
 
               <div className="absolute bottom-6 left-6 right-6 z-20">
-                <div className="bg-white/80 backdrop-blur-xl p-4 sm:p-6 rounded-xl border border-white shadow-lg">
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-100 shadow-xl">
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-slate-900 font-bold">Operational Efficiency</p>
                     <span className="text-primary font-mono font-bold text-sm">+24.8%</span>

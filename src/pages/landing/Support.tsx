@@ -1,21 +1,20 @@
-
 import React from 'react';
-import { HelpCircle, FileText, Code, MessageCircle } from 'lucide-react';
+import { HelpCircle, Code, MessageCircle, BookOpen } from 'lucide-react';
 
 const Support: React.FC = () => {
   const resources = [
     { title: "Help Center", icon: <HelpCircle />, desc: "Detailed guides for every feature." },
-    { title: "Developer API", icon: <Code />, desc: "Integrate ClinicOS into your existing apps." },
-    { title: "User Manuals", icon: <FileText />, desc: "PDF documentation for off-line training." },
-    { title: "Community Forum", icon: <MessageCircle />, desc: "Connect with other ClinicOS users." }
+    { title: "Developer API", icon: <Code />, desc: "Integrate MedFlow into your existing apps." },
+    { title: "Training", icon: <BookOpen />, desc: "Schedule a session with our specialists." },
+    { title: "Community Forum", icon: <MessageCircle />, desc: "Connect with other MedFlow users." }
   ];
 
   return (
     <div className="pt-20">
-      <section className="bg-slate-900 py-24 text-center">
+      <section className="bg-slate-50 border-b border-slate-100 py-24 text-center">
         <div className="max-w-4xl mx-auto px-4">
-          <h1 className="text-5xl font-bold text-white mb-6">Support & Resources</h1>
-          <p className="text-xl text-slate-400">Everything you need to master ClinicOS.</p>
+          <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Support <span className="text-blue-600">Center</span></h1>
+          <p className="text-xl text-slate-400">Everything you need to master MedFlow.</p>
         </div>
       </section>
 
@@ -38,9 +37,9 @@ const Support: React.FC = () => {
           <h2 className="text-2xl font-bold mb-4">Stay Informed</h2>
           <p className="text-slate-600 mb-8">Join our newsletter for monthly clinical operation tips and product updates.</p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <input 
-              type="email" 
-              placeholder="Enter your email" 
+            <input
+              type="email"
+              placeholder="Enter your email"
               className="flex-grow p-4 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
             />
             <button className="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold hover:bg-blue-600 transition-all">
