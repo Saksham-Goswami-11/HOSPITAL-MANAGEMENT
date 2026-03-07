@@ -241,7 +241,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Dialog>
                     <DialogTrigger asChild>
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer group">
+                        <div id="tour-analytics-hub" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer group">
                             <div>
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-105 transition-transform">

@@ -37,11 +37,11 @@ export const ProductTour: React.FC = () => {
                 // Scroll to element if not in view
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                // Compute position after a tiny delay to allow scrolling
+                // Compute position after a delay to allow smooth scrolling to finish
                 timeoutId = setTimeout(() => {
                     const rect = element.getBoundingClientRect();
                     setTargetRect(rect);
-                }, 300);
+                }, 500);
             } else if (retryCount < maxRetries) {
                 retryCount++;
                 timeoutId = setTimeout(findElementAndSetRect, 100);
@@ -71,31 +71,45 @@ export const ProductTour: React.FC = () => {
             transform: 'translate(-50%, -50%)',
         };
     } else if (targetRect) {
-        // Try to place to the right, or bottom, based on available space
-        const padding = 20;
-        const dialogWidth = 400; // estimated
-        const dialogHeight = 200; // estimated
+        const padding = 24;
+        const spotlightBuffer = 15;
+        const dialogWidth = 450;
+        const dialogHeight = 250;
 
-        if (targetRect.right + dialogWidth + padding < windowSize.width) {
-            // Right
+        // Determine best position: Right, Left, Bottom, Top
+        const spaceRight = windowSize.width - (targetRect.right + spotlightBuffer + padding);
+        const spaceLeft = targetRect.left - spotlightBuffer - padding;
+        const spaceBottom = windowSize.height - (targetRect.bottom + spotlightBuffer + padding);
+        const spaceTop = targetRect.top - spotlightBuffer - padding;
+
+        if (spaceRight >= dialogWidth) {
+            // Place Right
             dialogStyle = {
-                top: Math.max(padding, targetRect.top),
-                left: targetRect.right + padding,
+                top: Math.max(padding, Math.min(targetRect.top, windowSize.height - dialogHeight - padding)),
+                left: targetRect.right + spotlightBuffer + padding,
             };
-        } else if (targetRect.bottom + dialogHeight + padding < windowSize.height) {
-            // Bottom
+        } else if (spaceLeft >= dialogWidth) {
+            // Place Left
             dialogStyle = {
-                top: targetRect.bottom + padding,
-                left: Math.max(padding, targetRect.left),
+                top: Math.max(padding, Math.min(targetRect.top, windowSize.height - dialogHeight - padding)),
+                left: targetRect.left - dialogWidth - spotlightBuffer - padding,
             };
-        } else if (targetRect.left - dialogWidth - padding > 0) {
-            // Left
+        } else if (spaceBottom >= dialogHeight) {
+            // Place Bottom
             dialogStyle = {
-                top: Math.max(padding, targetRect.top),
-                left: targetRect.left - dialogWidth - padding,
+                top: targetRect.bottom + spotlightBuffer + padding,
+                left: '50%',
+                transform: 'translateX(-50%)',
+            };
+        } else if (spaceTop >= dialogHeight) {
+            // Place Top
+            dialogStyle = {
+                top: targetRect.top - dialogHeight - spotlightBuffer - padding,
+                left: '50%',
+                transform: 'translateX(-50%)',
             };
         } else {
-            // Top or fallback to bottom center
+            // Fallback: Bottom of screen (centered)
             dialogStyle = {
                 bottom: padding,
                 left: '50%',
@@ -118,12 +132,12 @@ export const ProductTour: React.FC = () => {
                             clipPath: targetRect && !isCenter
                                 ? `polygon(
                     0% 0%, 0% 100%, 
-                    ${targetRect.left - 10}px 100%, 
-                    ${targetRect.left - 10}px ${targetRect.top - 10}px, 
-                    ${targetRect.right + 10}px ${targetRect.top - 10}px, 
-                    ${targetRect.right + 10}px ${targetRect.bottom + 10}px, 
-                    ${targetRect.left - 10}px ${targetRect.bottom + 10}px, 
-                    ${targetRect.left - 10}px 100%, 
+                    ${targetRect.left - 15}px 100%, 
+                    ${targetRect.left - 15}px ${targetRect.top - 15}px, 
+                    ${targetRect.right + 15}px ${targetRect.top - 15}px, 
+                    ${targetRect.right + 15}px ${targetRect.bottom + 15}px, 
+                    ${targetRect.left - 15}px ${targetRect.bottom + 15}px, 
+                    ${targetRect.left - 15}px 100%, 
                     100% 100%, 100% 0%
                   )`
                                 : 'none'
@@ -135,8 +149,13 @@ export const ProductTour: React.FC = () => {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                        className="absolute pointer-events-auto w-[calc(100%-40px)] max-w-[450px]"
+                        className="absolute pointer-events-auto w-[calc(100%-40px)] max-w-[450px] z-[10000]"
+                        transition={{
+                            type: 'spring',
+                            damping: 25,
+                            stiffness: 200,
+                            opacity: { duration: 0.3 }
+                        }}
                         style={dialogStyle}
                     >
                         <div className="relative bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col md:flex-row">

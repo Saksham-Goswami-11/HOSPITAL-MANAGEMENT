@@ -298,7 +298,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                 <div className="flex items-center gap-3">
                     <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
                         <DialogTrigger asChild>
-                            <Button className="bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-900/20 text-white gap-2">
+                            <Button id="tour-new-clinic" className="bg-slate-900 hover:bg-slate-800 shadow-lg shadow-slate-900/20 text-white gap-2">
                                 <Plus className="w-4 h-4" /> New Clinic HUB
                             </Button>
                         </DialogTrigger>
@@ -518,7 +518,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
 
             {/* ANALYTICS SECTION */}
             <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div id="tour-analytics-hub" className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                         <div className="w-2 h-8 bg-indigo-600 rounded-full" />
                         Unified Analytics Hub
@@ -814,8 +814,8 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {clinics.length > 0 ? clinics.map((clinic: any) => (
-                                    <tr key={clinic.id} className="hover:bg-slate-50/50 transition-colors">
+                                {clinics.length > 0 ? clinics.map((clinic: any, index: number) => (
+                                    <tr key={clinic.id} id={index === 0 ? "tour-clinic-management-toggle" : undefined} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="px-6 py-3 font-medium text-slate-700">{clinic.name}</td>
                                         <td className="px-6 py-3 text-slate-500">{clinic.address || 'N/A'}</td>
                                         <td className="px-6 py-3">
