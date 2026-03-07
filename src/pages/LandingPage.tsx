@@ -5,7 +5,6 @@ import Hero from '@/components/landing/Hero';
 import Offers from '@/components/landing/Offers';
 import FeaturesGrid from '@/components/landing/FeaturesGrid';
 import Footer from '@/components/landing/Footer';
-import AIInsightsSection from '@/components/landing/AIInsightsSection';
 import PricingSection from '@/components/landing/PricingSection';
 
 const ScrollToTop = () => {
@@ -25,7 +24,6 @@ const LandingPage: React.FC = () => {
                 <Hero />
                 <Offers />
                 <FeaturesGrid />
-                <AIInsightsSection />
                 <PricingSection />
             </main>
             <Footer />

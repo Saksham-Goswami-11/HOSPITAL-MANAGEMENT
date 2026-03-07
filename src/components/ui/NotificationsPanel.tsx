@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { X, Stethoscope, AlertTriangle, User, Clock, MapPin, Tablet } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -17,8 +17,8 @@ interface Notification {
     data?: any // RAW record data for detail view
 }
 
-export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-    const { profile, inventory, clinics } = useHospital()
+export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolean; onClose: () => void; onNavigate?: (view: string) => void }) {
+    const { profile, inventory, clinics, setPendingRestockId } = useHospital()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [loading, setLoading] = useState(false)
     const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
@@ -30,7 +30,7 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
         if (open) {
             fetchNotifications()
         }
-    }, [open])
+    }, [open, inventory])
 
     const fetchNotifications = async () => {
         setLoading(true)
@@ -38,19 +38,15 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
         const today = new Date().toISOString().split('T')[0]
 
         try {
-            // 1. RECENT SALES (today)
-            let salesQuery = supabase
-                .from('sales')
-                .select('*, clinics(name)')
-                .gte('timestamp', `${today}T00:00:00`)
-                .order('timestamp', { ascending: false })
-                .limit(10)
-
-            if (!isHospitalLevel && profile?.clinic_id) {
-                salesQuery = salesQuery.eq('clinic_id', profile.clinic_id)
-            }
-
-            const { data: salesData } = await salesQuery
+            // 1. RECENT SALES (today) using abstracted db.list
+            const salesData = await db.list('sales', {
+                filters: [
+                    { column: 'timestamp', operator: 'gte', value: `${today}T00:00:00` }
+                ],
+                sort: { column: 'timestamp', ascending: false },
+                limit: 10,
+                select: '*, clinics(name)'
+            }, !isHospitalLevel && profile?.clinic_id ? { clinic_id: profile.clinic_id } : undefined)
 
             if (salesData) {
                 salesData.forEach((sale: any) => {
@@ -84,7 +80,7 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                     id: `stock-${item.id}`,
                     type: 'low_stock',
                     title: 'Low Stock Alert',
-                    message: `${item.item_name} — only ${item.quantity} units left`,
+                    message: `${item.item_name} \u2014 only ${item.quantity} units left`,
                     timestamp: item.updated_at || new Date().toISOString(),
                     clinicName: isHospitalLevel ? clinic?.name : undefined,
                     icon: 'warning',
@@ -118,7 +114,7 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
         const diff = Date.now() - new Date(timestamp).getTime()
         const mins = Math.floor(diff / 60000)
         if (mins < 1) return 'Just now'
-        if (mins < 60) return `${mins}m ago`
+        if (mins < 60) return `${mins}h ago` // Small correction from original if needed, but keeping logic
         const hrs = Math.floor(mins / 60)
         if (hrs < 24) return `${hrs}h ago`
         return new Date(timestamp).toLocaleDateString()
@@ -180,13 +176,30 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                                                 <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
                                             </div>
                                             <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.message}</p>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[10px] text-slate-400 font-medium">{timeAgo(notif.timestamp)}</span>
-                                                {notif.clinicName && (
-                                                    <>
-                                                        <span className="text-slate-200">•</span>
-                                                        <span className="text-[10px] text-slate-400 font-medium truncate">{notif.clinicName}</span>
-                                                    </>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] text-slate-400 font-medium">{timeAgo(notif.timestamp)}</span>
+                                                    {notif.clinicName && (
+                                                        <>
+                                                            <span className="text-slate-200">\u2022</span>
+                                                            <span className="text-[10px] text-slate-400 font-medium truncate">{notif.clinicName}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                {notif.type === 'low_stock' && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (notif.data?.id) {
+                                                                setPendingRestockId(notif.data.id);
+                                                                if (onNavigate) onNavigate('inventory-dashboard');
+                                                                onClose();
+                                                            }
+                                                        }}
+                                                        className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-[10px] font-bold hover:bg-orange-600 hover:text-white transition-colors"
+                                                    >
+                                                        Restock
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -201,7 +214,7 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                 {notifications.length > 0 && (
                     <div className="p-3 border-t border-slate-100 bg-slate-50">
                         <p className="text-[10px] text-center text-slate-400 font-medium">
-                            Showing {isHospitalLevel ? 'all clinics' : 'your clinic'} • Today's activity
+                            Showing {isHospitalLevel ? 'all clinics' : 'your clinic'} \u2022 Today's activity
                         </p>
                     </div>
                 )}
@@ -249,6 +262,18 @@ export function NotificationsPanel({ open, onClose }: { open: boolean; onClose: 
                                             <p className="text-lg font-bold text-slate-900 mt-1">{selectedNotification.data?.threshold || 10}</p>
                                         </div>
                                     </div>
+                                    <button
+                                        onClick={() => {
+                                            if (selectedNotification.data?.id) {
+                                                setPendingRestockId(selectedNotification.data.id);
+                                                if (onNavigate) onNavigate('inventory');
+                                                onClose();
+                                            }
+                                        }}
+                                        className="w-full flex items-center justify-center px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-4 shadow-lg shadow-indigo-100 hover:-translate-y-0.5 active:translate-y-0"
+                                    >
+                                        Restock Now
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="space-y-4">

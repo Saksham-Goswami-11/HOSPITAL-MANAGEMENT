@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import {
     Check, X, ArrowRight, Sparkles, Crown,
     Zap, Star, Clock, Shield
@@ -47,6 +47,20 @@ const PLAN_GRADIENTS: Record<string, { from: string; to: string; bg: string; bor
         bg: 'bg-amber-50',
         border: 'border-amber-200 hover:border-amber-400',
         glow: 'bg-amber-400',
+    },
+    testing: {
+        from: 'from-teal-500',
+        to: 'to-cyan-600',
+        bg: 'bg-teal-50',
+        border: 'border-teal-200 hover:border-teal-400',
+        glow: 'bg-teal-400',
+    },
+    extended_testing: {
+        from: 'from-cyan-500',
+        to: 'to-sky-600',
+        bg: 'bg-cyan-50',
+        border: 'border-cyan-200 hover:border-cyan-400',
+        glow: 'bg-cyan-400',
     },
 };
 
@@ -96,13 +110,17 @@ const PricingSection: React.FC = () => {
 
     useEffect(() => {
         const fetchPlans = async () => {
-            const { data } = await supabase
-                .from('plans')
-                .select('*')
-                .eq('is_active', true)
-                .order('sort_order');
-            setPlans(data || []);
-            setLoading(false);
+            try {
+                const data = await db.list('plans', {
+                    filters: { is_active: true },
+                    sort: { column: 'sort_order' }
+                });
+                setPlans(data || []);
+            } catch (error) {
+                console.error('Error fetching plans:', error);
+            } finally {
+                setLoading(false);
+            }
         };
         fetchPlans();
     }, []);
@@ -182,7 +200,7 @@ const PricingSection: React.FC = () => {
 
                 {/* Plans Grid */}
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-5 max-w-5xl mx-auto">
-                    {plans.map((plan) => {
+                    {plans.filter(p => !['testing', 'extended_testing'].includes(p.slug)).map((plan) => {
                         const style = PLAN_GRADIENTS[plan.slug] || PLAN_GRADIENTS.starter;
                         const Icon = PLAN_ICONS[plan.slug] || Zap;
                         const isPro = plan.slug === 'professional';

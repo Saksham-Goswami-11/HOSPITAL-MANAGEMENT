@@ -1,7 +1,9 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { authService as auth } from '@/lib/authService';
+import { dataService as db } from '@/lib/dataService';
 import { useSubscription, SubscriptionContextValue } from '@/hooks/useSubscription';
+import { showNotification } from '@/lib/notifications';
 
 // Define Types
 type Profile = {
@@ -17,7 +19,7 @@ type Hospital = {
     id: string;
     name: string;
     branding_color?: string;
-    settings?: Record<string, any>; // NEW
+    settings?: Record<string, any>;
     [key: string]: any;
 };
 
@@ -25,7 +27,9 @@ type Clinic = {
     id: string;
     name: string;
     address?: string;
-    settings?: Record<string, any>; // NEW
+    settings?: Record<string, any>;
+    status?: 'active' | 'paused';
+    scheduled_deletion_date?: string | null;
     [key: string]: any;
 };
 
@@ -45,73 +49,85 @@ interface HospitalContextType {
     session: any;
     profile: Profile | null;
     hospital: Hospital | null;
-    managedClinic: Clinic | null; // NEW: Specific clinic for Clinic Admins
-    hasOrganization: boolean;     // NEW: True if Hospital OR Managed Clinic exists
+    managedClinic: Clinic | null;
+    hasOrganization: boolean;
     clinics: Clinic[];
     inventory: InventoryItem[];
     loading: boolean;
     refreshData: () => Promise<void>;
     updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => Promise<void>;
-    // Auth Helpers
     isPasswordRecovery: boolean;
     setIsPasswordRecovery: (isRecovery: boolean) => void;
-    requestPasswordReset: (email: string) => Promise<void>;
-    updateUserPassword: (newPassword: string) => Promise<void>;
-    // Global Settings
     updateHospitalSettings: (hospitalId: string, settings: Record<string, any>) => Promise<void>;
     updateClinicSettings: (clinicId: string, settings: Record<string, any>) => Promise<void>;
     updateHospitalProfile: (hospitalId: string, updates: Partial<Hospital>) => Promise<void>;
     updateClinicProfile: (clinicId: string, updates: Partial<Clinic>) => Promise<void>;
-    // Subscription & Billing
+    updateUserPassword: (password: string) => Promise<void>;
     billing: SubscriptionContextValue;
+    requiresDowngradeResolution: boolean;
+    activeClinics: Clinic[];
+    pendingRestockId: string | null;
+    setPendingRestockId: (id: string | null) => void;
 }
 
-// Create Context
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
 
-// Provider Component
 export function HospitalProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<any>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [hospital, setHospital] = useState<Hospital | null>(null);
-    const [managedClinic, setManagedClinic] = useState<Clinic | null>(null); // NEW
+    const [managedClinic, setManagedClinic] = useState<Clinic | null>(null);
     const [clinics, setClinics] = useState<Clinic[]>([]);
     const [inventory, setInventory] = useState<InventoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+    const [pendingRestockId, setPendingRestockId] = useState<string | null>(null);
 
-    // Subscription & Billing
-    const billing = useSubscription(profile?.hospital_id);
+    const rawBilling = useSubscription(profile?.hospital_id);
 
-    // Initial Load
+    const activeClinics = clinics.filter(c => c.status !== 'paused');
+
+    // Override raw billing metrics with strictly active clinics count for limit checks
+    const billing: SubscriptionContextValue = {
+        ...rawBilling,
+        usage: {
+            ...rawBilling.usage,
+            clinics_count: activeClinics.length
+        },
+        isAtLimit: (metric) => {
+            if (metric === 'clinics_count') {
+                const max = rawBilling.getLimit(metric);
+                if (max === -1) return false;
+                return activeClinics.length >= max;
+            }
+            return rawBilling.isAtLimit(metric);
+        },
+        getUsagePercent: (metric) => {
+            if (metric === 'clinics_count') {
+                const max = rawBilling.getLimit(metric);
+                if (max === -1) return 0;
+                if (max === 0) return 100;
+                return Math.min(100, Math.round((activeClinics.length / max) * 100));
+            }
+            return rawBilling.getUsagePercent(metric);
+        },
+        getRemainingQuota: (metric) => {
+            if (metric === 'clinics_count') {
+                const max = rawBilling.getLimit(metric);
+                if (max === -1) return Infinity;
+                return Math.max(0, max - activeClinics.length);
+            }
+            return rawBilling.getRemainingQuota(metric);
+        }
+    };
+
+    const requiresDowngradeResolution = activeClinics.length > billing.getLimit('clinics_count');
+
     useEffect(() => {
-        // 1. Check active session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-
-            // Detect password recovery from URL hash fragment
-            // Supabase appends #access_token=...&type=recovery to the redirect URL
-            const hashFragment = window.location.hash;
-            // The hash may contain both a route (e.g. #/) and Supabase params
-            // Look for type=recovery anywhere in the hash
-            if (hashFragment.includes('type=recovery')) {
-                setIsPasswordRecovery(true);
-            }
-
-            if (session) fetchProfile(session.user.id);
-            else setLoading(false);
-        });
-
-        // 2. Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            setSession(session);
-
-            if (event === 'PASSWORD_RECOVERY') {
-                setIsPasswordRecovery(true);
-            }
-
-            if (session) {
-                fetchProfile(session.user.id);
+        auth.onAuthStateChange((user) => {
+            setSession(user);
+            if (user) {
+                fetchProfile(user.id);
             } else {
                 setProfile(null);
                 setHospital(null);
@@ -121,95 +137,115 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                 setLoading(false);
             }
         });
-
-        return () => subscription.unsubscribe();
     }, []);
 
-    // Fetch Profile & Hospital / Clinic
-    const fetchProfile = async (userId: string) => {
-        // Fetching profile
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*, hospitals(*)') // Fetch hospital details
-            .eq('id', userId)
-            .single();
+    // Monitoring inventory for low stock notifications
+    useEffect(() => {
+        if (!loading && inventory.length > 0 && profile) {
+            const lowStockItems = inventory.filter(item => {
+                const isRelevant = profile.role === 'HOSPITAL_ADMIN' || profile.role === 'ADMIN' || item.clinic_id === profile.clinic_id;
+                return isRelevant && item.quantity < (item.threshold || 10);
+            });
 
-        if (error) {
-            console.error("Error fetching profile:", error);
-            setLoading(false);
-            return;
-        }
+            // Prevent duplicate notifications in the same session by tracking notified item IDs
+            const notifiedIds = new Set(JSON.parse(sessionStorage.getItem('notified_low_stock') || '[]'));
+            let updated = false;
 
-        if (data) {
-            // Profile found
-            setProfile(data);
-
-            // Handle Hospital Admin / Staff
-            if (data.hospitals) {
-                setHospital(data.hospitals);
-                applyBranding(data.hospitals.branding_color);
-            }
-
-            // Handle Clinic Admin (Managed Clinic)
-            if (data.role === 'CLINIC_ADMIN' && data.clinic_id) {
-                const { data: clinicData } = await supabase
-                    .from('clinics')
-                    .select('*')
-                    .eq('id', data.clinic_id)
-                    .single();
-                if (clinicData) {
-                    setManagedClinic(clinicData);
+            lowStockItems.forEach(item => {
+                if (!notifiedIds.has(item.id)) {
+                    showNotification('Low Stock Alert', {
+                        body: `${item.item_name} is running low (${item.quantity} left).`,
+                        tag: `low-stock-${item.id}`
+                    });
+                    notifiedIds.add(item.id);
+                    updated = true;
                 }
-            }
+            });
 
-            // Fetch Data using the hospital_id
-            if (data.hospital_id) {
-                await fetchData(data.hospital_id);
+            if (updated) {
+                sessionStorage.setItem('notified_low_stock', JSON.stringify(Array.from(notifiedIds)));
+            }
+        }
+    }, [inventory, loading, profile]);
+
+    // Real-time sales notifications
+    useEffect(() => {
+        if (!profile?.hospital_id) return;
+
+        const unsubscribe = db.subscribe('sales', (newSale) => {
+            // Check if this sale belongs to current hospital
+            if (newSale.hospital_id !== profile.hospital_id) return;
+
+            // If clinic-level user, check clinic ID
+            if (profile.role === 'CLINIC_ADMIN' && newSale.clinic_id !== profile.clinic_id) return;
+
+            const isConsultation = newSale.sale_type === 'CONSULTATION';
+            const title = isConsultation ? 'New Consultation' : 'New Pharmacy Sale';
+            const body = `₹${newSale.amount?.toLocaleString()} • ${newSale.patient_name} • Dr. ${newSale.doctor_name}`;
+
+            showNotification(title, {
+                body,
+                tag: `sale-${newSale.id}`,
+                icon: isConsultation ? '/stethoscope.png' : '/medication.png' // Use fallback if icons not present
+            });
+        });
+
+        return () => unsubscribe();
+    }, [profile]);
+
+    const fetchProfile = async (userId: string) => {
+        try {
+            const profileData = await db.get('profiles', userId);
+            if (profileData) {
+                setProfile(profileData);
+
+                if (profileData.hospital_id) {
+                    const hospitalData = await db.get('hospitals', profileData.hospital_id);
+                    if (hospitalData) {
+                        setHospital(hospitalData);
+                        applyBranding(hospitalData.branding_color);
+                    }
+                }
+
+                if (profileData.role === 'CLINIC_ADMIN' && profileData.clinic_id) {
+                    const clinicData = await db.get('clinics', profileData.clinic_id);
+                    if (clinicData) {
+                        setManagedClinic(clinicData);
+                    }
+                }
+
+                if (profileData.hospital_id) {
+                    await fetchData(profileData.hospital_id);
+                } else {
+                    setLoading(false);
+                }
             } else {
                 setLoading(false);
             }
-        } else {
+        } catch (error) {
+            console.error("Error fetching profile:", error);
             setLoading(false);
         }
     };
 
-    // Fetch Clinics & Inventory
     const fetchData = async (hospitalId: string) => {
         try {
-            // Fetching hospital data
+            const clinicsData = await db.list('clinics', {
+                filters: [{ column: 'hospital_id', operator: 'eq', value: hospitalId }]
+            });
+            setClinics(clinicsData);
 
-            // Fetch clinics
-            const { data: clinicsData, error: clinicsError } = await supabase
-                .from('clinics')
-                .select('*')
-                .eq('hospital_id', hospitalId);
-
-            if (clinicsError) console.error("Error fetching clinics:", clinicsError);
-            if (clinicsData) setClinics(clinicsData);
-
-            // Fetch Inventory
-            const { data: inventoryData, error: invError } = await supabase
-                .from('inventory')
-                .select('*, clinics(name)')
-                .eq('hospital_id', hospitalId);
-
-            if (invError) console.error("Error fetching inventory:", invError);
-            if (inventoryData) {
-                const mappedInventory = inventoryData.map((i: any) => ({
-                    ...i,
-                    clinic_name: i.clinics?.name,
-                }));
-                setInventory(mappedInventory);
-            }
-
+            const inventoryData = await db.list('inventory', {
+                filters: [{ column: 'hospital_id', operator: 'eq', value: hospitalId }]
+            });
+            setInventory(inventoryData);
         } catch (err) {
-            console.error("Critical error in fetchData:", err);
+            console.error("Error fetching data:", err);
         } finally {
             setLoading(false);
         }
     };
 
-    // Dynamic Branding Logic
     const applyBranding = (hexColor?: string) => {
         if (!hexColor) return;
         const r = parseInt(hexColor.slice(1, 3), 16);
@@ -235,107 +271,41 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         document.documentElement.style.setProperty('--ring', `${hDeg.toFixed(1)} ${sPct.toFixed(1)}% ${lPct.toFixed(1)}%`);
     };
 
-    // Refresh function for consumers
     const refreshData = async () => {
         if (profile?.hospital_id) {
             await fetchData(profile.hospital_id);
         }
     };
 
-    // Update Inventory Item Helper
     const updateInventoryItem = async (id: string, updates: Partial<InventoryItem>) => {
-        try {
-            const { error } = await supabase
-                .from('inventory')
-                .update(updates)
-                .eq('id', id);
-
-            if (error) throw error;
-
-            // Re-fetch data to sync state
-            await refreshData();
-        } catch (err) {
-            console.error("Error updating inventory item:", err);
-            throw err;
-        }
+        await db.update('inventory', id, updates);
+        await refreshData();
     };
 
-    // --- SETTINGS HELPERS ---
     const updateHospitalSettings = async (hospitalId: string, newSettings: Record<string, any>) => {
-        try {
-            const { error } = await supabase
-                .from('hospitals')
-                .update({ settings: newSettings })
-                .eq('id', hospitalId);
-
-            if (error) throw error;
-            await refreshData();
-        } catch (err) {
-            console.error("Error updating hospital settings:", err);
-            throw err;
-        }
+        await db.update('hospitals', hospitalId, { settings: newSettings });
+        await refreshData();
     };
 
     const updateClinicSettings = async (clinicId: string, newSettings: Record<string, any>) => {
-        try {
-            const { error } = await supabase
-                .from('clinics')
-                .update({ settings: newSettings })
-                .eq('id', clinicId);
-
-            if (error) throw error;
-            await refreshData();
-        } catch (err) {
-            console.error("Error updating clinic settings:", err);
-            throw err;
-        }
+        await db.update('clinics', clinicId, { settings: newSettings });
+        await refreshData();
     };
 
     const updateHospitalProfile = async (hospitalId: string, updates: Partial<Hospital>) => {
-        try {
-            const { error } = await supabase
-                .from('hospitals')
-                .update(updates)
-                .eq('id', hospitalId);
-
-            if (error) throw error;
-            await refreshData();
-        } catch (err) {
-            console.error("Error updating hospital profile:", err);
-            throw err;
-        }
+        await db.update('hospitals', hospitalId, updates);
+        await refreshData();
     };
 
     const updateClinicProfile = async (clinicId: string, updates: Partial<Clinic>) => {
-        try {
-            const { error } = await supabase
-                .from('clinics')
-                .update(updates)
-                .eq('id', clinicId);
-
-            if (error) throw error;
-            await refreshData();
-        } catch (err) {
-            console.error("Error updating clinic profile:", err);
-            throw err;
-        }
+        await db.update('clinics', clinicId, updates);
+        await refreshData();
     };
 
-    // --- PASSWORD RECOVERY HELPERS ---
-    const requestPasswordReset = async (email: string) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}${window.location.pathname}`,
-        });
-        if (error) throw error;
+    const updateUserPassword = async (password: string) => {
+        await auth.updatePassword(password);
     };
 
-    const updateUserPassword = async (newPassword: string) => {
-        const { error } = await supabase.auth.updateUser({ password: newPassword });
-        if (error) throw error;
-        setIsPasswordRecovery(false);
-    };
-
-    // Derived State
     const hasOrganization = !!hospital || !!managedClinic;
 
     return (
@@ -352,13 +322,16 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             updateInventoryItem,
             isPasswordRecovery,
             setIsPasswordRecovery,
-            requestPasswordReset,
-            updateUserPassword,
             updateHospitalSettings,
             updateClinicSettings,
             updateHospitalProfile,
             updateClinicProfile,
-            billing
+            updateUserPassword,
+            billing,
+            requiresDowngradeResolution,
+            activeClinics,
+            pendingRestockId,
+            setPendingRestockId
         }}
         >
             {children}
@@ -366,7 +339,6 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     );
 }
 
-// Hook
 export const useHospital = () => {
     const context = useContext(HospitalContext);
     if (!context) {

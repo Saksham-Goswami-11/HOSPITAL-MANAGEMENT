@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Building2, TrendingUp, AlertTriangle, Plus, Loader2, UserPlus, Download, MessageCircle, Package, ArrowUpRight, Shield } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { Building2, TrendingUp, AlertTriangle, Plus, Loader2, UserPlus, Package, ArrowUpRight, Shield } from 'lucide-react'
+import { dataService as db } from '@/lib/dataService'
+import { authService as auth } from '@/lib/authService'
 import { useToast } from '@/components/ui/use-toast'
-import { jsPDF } from "jspdf"
 import { useHospital } from '@/context/HospitalContext'
 import {
     PieChart, Pie, Cell, Tooltip, ResponsiveContainer
@@ -25,7 +24,7 @@ interface HospitalDashboardProps {
 
 export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const { toast } = useToast()
-    const { inventory, profile, hospital, clinics } = useHospital()
+    const { inventory, hospital, clinics, profile, billing, updateClinicProfile } = useHospital()
 
     // Derived state from context
     const lowStock = inventory.filter(i => {
@@ -60,44 +59,29 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
             const today = new Date().toISOString().split('T')[0]
 
-            // 1. Expiring Items
-            let expiryQuery = supabase
-                .from('inventory')
-                .select('item_name, expiry_date, clinic_id, clinics(name)')
-                .lt('expiry_date', thirtyDaysFromNow.toISOString())
-                .gt('quantity', 0)
-                .eq('hospital_id', profile.hospital_id)
+            try {
+                // 1. Expiring Items
+                const expiryData = await db.list('inventory', {
+                    filters: [
+                        { column: 'hospital_id', operator: '==', value: profile.hospital_id },
+                        { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow.toISOString() },
+                        { column: 'quantity', operator: '>', value: 0 }
+                    ]
+                });
+                setExpiringItems(expiryData)
 
-            const { data: expiryData } = await expiryQuery;
-
-            if (expiryData) setExpiringItems(expiryData)
-
-            // 2. Revenue Summary
-            // Assuming admin_revenue_summary has hospital_id column or we filter in memory if not. 
-            // Better to assume it filters by the user's scope if security invoker is true, but explict check is better.
-            // Since the view likely aggregates sales, and sales have clinic_id, we can filter by clinic_id linking to hospital.
-            // But for now, we rely on the existing logic which was:
-            let revQuery = supabase
-                .from('admin_revenue_summary')
-                .select('*')
-                .eq('revenue_date', today)
-            // .eq('hospital_id', profile.hospital_id) // Add if view supports it.
-
-            // NOTE: If the view doesn't have hospital_id, we might be over-fetching. 
-            // In a real app we'd update the view. For now, we trust the previous logic which filtered in JS or query if possible?
-            // Actually the previous code did:
-            // if (!isSuperAdmin && profile?.hospital_id) { revQuery = revQuery.eq('hospital_id', profile.hospital_id) }
-            // So we assume the column exists or was intended to.
-
-            const { data: revData, error } = await revQuery;
-
-            if (revData) {
-                // Client-side filter if needed (or if the column exists but we want to be safe)
-                setRevenueSummary(revData) // We assume RLS or View logic helps, or we filter here if we had clinic list.
+                // 2. Revenue Summary
+                const revData = await db.list('admin_revenue_summary', {
+                    filters: [
+                        { column: 'revenue_date', operator: '==', value: today }
+                    ]
+                });
+                setRevenueSummary(revData)
+            } catch (err) {
+                console.error('Error fetching dashboard data:', err)
+            } finally {
+                setLoadingStats(false)
             }
-            if (error) console.error('Error fetching revenue summary:', error)
-
-            setLoadingStats(false)
         }
         fetchDashboardData()
     }, [profile])
@@ -108,37 +92,33 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
             if (!profile?.hospital_id) return;
             setAnalyticsLoading(true);
 
-            let query = supabase
-                .from('sales')
-                .select('amount, payment_mode, sale_type, clinic_id, clinics(name)')
-                .eq('hospital_id', profile.hospital_id);
+            try {
+                const analyticsFilters: any[] = [
+                    { field: 'hospital_id', operator: '==', value: profile.hospital_id }
+                ];
 
-            // Date filtering
-            const now = new Date();
-            if (dateFilter === 'today') {
-                query = query.gte('timestamp', now.toISOString().split('T')[0]);
-            } else if (dateFilter === 'week') {
-                const weekAgo = new Date(now.setDate(now.getDate() - 7));
-                query = query.gte('timestamp', weekAgo.toISOString());
-            } else if (dateFilter === 'month') {
-                const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-                query = query.gte('timestamp', monthAgo.toISOString());
-            }
+                const now = new Date();
+                if (dateFilter === 'today') {
+                    analyticsFilters.push({ field: 'timestamp', operator: '>=', value: now.toISOString().split('T')[0] });
+                } else if (dateFilter === 'week') {
+                    const weekAgo = new Date(now.setDate(now.getDate() - 7));
+                    analyticsFilters.push({ field: 'timestamp', operator: '>=', value: weekAgo.toISOString() });
+                } else if (dateFilter === 'month') {
+                    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+                    analyticsFilters.push({ field: 'timestamp', operator: '>=', value: monthAgo.toISOString() });
+                }
 
-            if (filters.clinic !== 'all') {
-                query = query.eq('clinic_id', filters.clinic);
-            }
-            if (filters.payment !== 'all') {
-                query = query.eq('payment_mode', filters.payment);
-            }
-            if (filters.type !== 'all') {
-                query = query.eq('sale_type', filters.type);
-            }
+                if (filters.clinic !== 'all') analyticsFilters.push({ column: 'clinic_id', operator: '==', value: filters.clinic });
+                if (filters.payment !== 'all') analyticsFilters.push({ column: 'payment_mode', operator: '==', value: filters.payment });
+                if (filters.type !== 'all') analyticsFilters.push({ column: 'sale_type', operator: '==', value: filters.type });
 
-            const { data, error } = await query;
-            if (data) setSalesData(data);
-            if (error) console.error('Analytics Fetch Error:', error);
-            setAnalyticsLoading(false);
+                const data = await db.list('sales', { filters: analyticsFilters });
+                setSalesData(data);
+            } catch (err) {
+                console.error('Analytics Fetch Error:', err);
+            } finally {
+                setAnalyticsLoading(false);
+            }
         };
 
         fetchAnalytics();
@@ -148,25 +128,86 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const displayData = useMemo(() => {
         const aggregated = salesData.reduce((acc: any, curr: any) => {
             let label = curr[groupBy];
-            if (groupBy === 'clinic_id') label = curr.clinics?.name || 'Unknown';
+            if (groupBy === 'clinic_id') {
+                const clinic = clinics.find((c: any) => c.id === curr.clinic_id);
+                label = clinic ? clinic.name : 'Unknown';
+            }
             acc[label] = (acc[label] || 0) + Number(curr.amount);
             return acc;
         }, {});
 
         return Object.entries(aggregated)
             .map(([name, value]) => ({ name, value }))
-            .sort((a: any, b: any) => b.value - a.value);
-    }, [salesData, groupBy]);
+            .sort((a: any, b: any) => (b.value as number) - (a.value as number));
+    }, [salesData, groupBy, clinics]);
 
     const totalSelectedRevenue = useMemo(() =>
-        displayData.reduce((acc, curr) => acc + (curr.value as number), 0),
+        displayData.reduce((acc: number, curr: any) => acc + (curr.value as number), 0),
         [displayData]);
 
     const COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
+    const handleUnpause = async (clinicId: string) => {
+        if (billing?.isAtLimit('clinics_count')) {
+            toast({
+                title: 'Limit Reached',
+                description: `Your current plan allows a maximum of ${billing.getLimit('clinics_count')} clinics. Please upgrade to unpause more clinics.`,
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        try {
+            await updateClinicProfile(clinicId, {
+                status: 'active',
+                scheduled_deletion_date: null
+            });
+            toast({
+                title: "Clinic Unpaused",
+                description: "The clinic is now active and accessible.",
+            });
+        } catch (error) {
+            console.error("Error unpausing clinic:", error);
+            toast({
+                title: "Error",
+                description: "Failed to unpause clinic. Please try again.",
+                variant: "destructive"
+            });
+        }
+    };
+    const handlePause = async (clinicId: string) => {
+        try {
+            await updateClinicProfile(clinicId, {
+                status: 'paused',
+                scheduled_deletion_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+            });
+            toast({
+                title: "Clinic Paused",
+                description: "The clinic has been paused and access is revoked.",
+            });
+        } catch (error) {
+            console.error("Error pausing clinic:", error);
+            toast({
+                title: "Error",
+                description: "Failed to pause clinic. Please try again.",
+                variant: "destructive"
+            });
+        }
+    };
 
     async function handleRegisterClinic(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
+
+        if (billing?.isAtLimit('clinics_count')) {
+            toast({
+                title: 'Limit Reached',
+                description: `Your current plan allows a maximum of ${billing.getLimit('clinics_count')} clinics. Please upgrade to add more.`,
+                variant: 'destructive'
+            });
+            setIsRegisterOpen(false);
+            return;
+        }
+
         setRegisterLoading(true)
         const formData = new FormData(e.currentTarget)
         const clinicName = formData.get('clinic_name') as string
@@ -176,73 +217,45 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
         const location = formData.get('location') as string
 
         try {
-            // 1. Create a temporary client for the signup
-            const tempSupabase = createClient(
-                import.meta.env.VITE_SUPABASE_URL,
-                import.meta.env.VITE_SUPABASE_ANON_KEY
-            )
+            toast({ title: 'Registration Started', description: 'Creating account...', duration: 3000 })
 
-            toast({ title: 'Registration Started', description: 'Creating clinic...', duration: 3000 })
+            // 1. Sign up the new user
+            const newUser = await auth.signUp(staffEmail, staffPassword);
+            if (!newUser) throw new Error("No user created")
 
-            // 2. Sign up the new user
-            const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-                email: staffEmail,
-                password: staffPassword,
-                options: {
-                    data: { full_name: staffName, role: 'CLINIC_ADMIN' }
-                }
-            })
-
-            if (authError) throw authError
-            if (!authData.user) throw new Error("No user created")
-
-            // 3. Call RPC
+            // 2. Call RPC via DataService
             const rpcParams = {
                 clinic_name: clinicName,
                 clinic_address: location,
-                staff_user_id: authData.user.id,
+                staff_user_id: newUser.id,
                 staff_name: staffName
             }
-            // RPC Payload prepared
-            // Fetching hospital stats
 
-            const { error: rpcError } = await supabase.rpc('admin_create_clinic_and_staff', rpcParams)
+            await db.callRpc('admin_create_clinic_and_staff', rpcParams);
 
-            if (rpcError) throw rpcError
+            // 3. Fetch the new Clinic ID
+            const clinics = await db.list('clinics', {
+                filters: [{ column: 'name', operator: '==', value: clinicName }],
+                sort: { column: 'created_at', ascending: false },
+                limit: 1
+            });
 
-            // 4. CRITICAL: Fetch the new Clinic ID (Robust Safety Net)
-            // We fetch the clinic we just created to get its ID guaranteed.
-            const { data: stringData, error: fetchError } = await supabase
-                .from('clinics')
-                .select('id')
-                .eq('name', clinicName)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (fetchError || !stringData) {
-                console.error("⚠️ Could not fetch new clinic ID:", fetchError)
+            if (!clinics[0]) {
                 throw new Error("Clinic created, but ID retrieval failed.")
             }
 
-            const newClinicId = stringData.id;
+            const newClinicId = clinics[0].id;
 
-            // 5. CRITICAL: Force Link & Role Update (The Permanent Fix)
-            // We explicitly set the ID and Role, bypassing any flaky DB triggers/functions.
-            const { error: roleError } = await supabase
-                .from('profiles')
-                .update({
-                    role: 'CLINIC_ADMIN',
-                    clinic_id: newClinicId,
-                    hospital_id: profile?.hospital_id // Ensure they belong to the parent hospital too
-                })
-                .eq('id', authData.user.id)
-
-            if (roleError) console.error("⚠️ Failed to enforce CLINIC_ADMIN/ID:", roleError)
+            // 4. Force Link & Role Update
+            await db.update('profiles', newUser.id, {
+                role: 'CLINIC_ADMIN',
+                clinic_id: newClinicId,
+                hospital_id: profile?.hospital_id
+            });
 
             toast({
                 title: '✅ Clinic Registered Systematically',
-                description: `Linked ${staffName} to ${clinicName} (ID: ${newClinicId.slice(0, 4)}...).`,
+                description: `Linked ${staffName} to ${clinicName}.`,
                 className: 'bg-green-50 border-green-200 text-green-900'
             })
             setIsRegisterOpen(false)
@@ -261,27 +274,10 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
         }
     }
 
-    const generatePDF = () => {
-        const doc = new jsPDF()
-        doc.text('Daily Network Report', 10, 10)
-        doc.text(`Date: ${new Date().toLocaleDateString()}`, 10, 20)
-        doc.text(`Total Network Revenue: ₹${totalRevenue.toLocaleString()}`, 10, 30)
 
-        let y = 50
-        doc.text('Clinic Breakdown:', 10, y)
-        y += 10
-        revenueSummary.forEach(c => {
-            doc.text(`${c.clinic_name}: ₹${c.total_revenue} (${c.transaction_count} txns)`, 10, y)
-            y += 10
-        })
 
-        doc.save('admin-daily-report.pdf')
-    }
-
-    const totalRevenue = revenueSummary.reduce((acc, curr) => acc + (curr.total_revenue || 0), 0)
-    const topClinic = revenueSummary.reduce((prev, current) => (prev.total_revenue > current.total_revenue) ? prev : current, { clinic_name: 'N/A', total_revenue: 0 })
-
-    const whatsappLink = `https://wa.me/?text=${encodeURIComponent(`Daily Report: Revenue ₹${totalRevenue}, Top Clinic: ${topClinic.clinic_name}`)}`
+    const totalRevenue = revenueSummary.reduce((acc: number, curr: any) => acc + (curr.total_revenue || 0), 0)
+    const topClinic = revenueSummary.reduce((prev: any, current: any) => (prev.total_revenue > current.total_revenue) ? prev : current, { clinic_name: 'N/A', total_revenue: 0 })
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -575,7 +571,9 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                     <SelectContent className="bg-white">
                                         <SelectItem value="all">All Locations</SelectItem>
                                         {clinics.map((c: any) => (
-                                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                            <SelectItem key={c.id} value={c.id} disabled={c.status === 'paused'}>
+                                                {c.name} {c.status === 'paused' ? '(Paused)' : ''}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -770,7 +768,14 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                         onClick={() => onSelectClinic(c.clinic_id)} // Drill Down
                                         className="hover:bg-slate-50/50 transition-colors cursor-pointer"
                                     >
-                                        <td className="px-6 py-3 font-medium text-slate-700">{c.clinic_name}</td>
+                                        <td className="px-6 py-3 font-medium text-slate-700">
+                                            {c.clinic_name}
+                                            {clinics.find((cl: any) => cl.id === c.clinic_id)?.status === 'paused' && (
+                                                <span className="ml-2 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold uppercase tracking-wider">
+                                                    Paused
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-3 text-slate-500">{c.hospital_name || 'N/A'}</td>
                                         <td className="px-6 py-3 text-slate-600 font-mono">₹{c.total_revenue?.toLocaleString()}</td>
                                         <td className="px-6 py-3 text-slate-600">{c.transaction_count}</td>
@@ -791,6 +796,72 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                 </CardContent>
             </Card>
 
+            {/* CLINIC MANAGEMENT TABLE */}
+            <Card className="glass-card border-none overflow-hidden relative group">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base font-medium text-slate-800">Clinic Management</CardTitle>
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="divide-y divide-slate-100 overflow-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium">
+                                <tr>
+                                    <td className="px-6 py-3">Clinic Name</td>
+                                    <td className="px-6 py-3">Location</td>
+                                    <td className="px-6 py-3">Status</td>
+                                    <td className="px-6 py-3 text-right">Action</td>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {clinics.length > 0 ? clinics.map((clinic: any) => (
+                                    <tr key={clinic.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-3 font-medium text-slate-700">{clinic.name}</td>
+                                        <td className="px-6 py-3 text-slate-500">{clinic.address || 'N/A'}</td>
+                                        <td className="px-6 py-3">
+                                            {clinic.status === 'paused' ? (
+                                                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase whitespace-nowrap">
+                                                    Paused
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase whitespace-nowrap">
+                                                    Active
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-3 text-right">
+                                            {clinic.status === 'paused' ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleUnpause(clinic.id)}
+                                                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800"
+                                                >
+                                                    Unpause
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handlePause(clinic.id)}
+                                                    className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                                                >
+                                                    Pause
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No clinics found.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* GLOBAL INVENTORY TABLE */}
             <Card className="glass-card border-none overflow-hidden relative group">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -798,46 +869,42 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                     <Package className="w-4 h-4 text-purple-600" />
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="divide-y divide-slate-100 max-h-[400px] overflow-auto">
+                    <div className="divide-y divide-slate-100 overflow-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-500 font-medium">
                                 <tr>
                                     <td className="px-6 py-3">Item Name</td>
-                                    <td className="px-6 py-3">Clinic Location</td>
-                                    <td className="px-6 py-3">Batch</td>
-                                    <td className="px-6 py-3 text-right">Stock Level</td>
+                                    <td className="px-6 py-3">Clinic</td>
+                                    <td className="px-6 py-3">Quantity</td>
+                                    <td className="px-6 py-3">Expiry</td>
+                                    <td className="px-6 py-3 text-right">Status</td>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {inventory.map((item) => (
+                                {inventory.length > 0 ? inventory.slice(0, 10).map((item: any) => (
                                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="px-6 py-3 font-medium text-slate-700">{item.item_name}</td>
-                                        <td className="px-6 py-3 text-slate-500">{item.clinic_name || 'Unknown'}</td>
-                                        <td className="px-6 py-3 text-slate-400 font-mono text-xs">{item.batch_number}</td>
+                                        <td className="px-6 py-3 text-slate-500">{item.clinic_name}</td>
+                                        <td className="px-6 py-3 font-mono font-bold">{item.quantity}</td>
+                                        <td className="px-6 py-3 text-slate-500">{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : 'N/A'}</td>
                                         <td className="px-6 py-3 text-right">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.quantity < item.threshold ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
-                                                {item.quantity}
-                                            </span>
+                                            {item.quantity < (item.threshold || 10) ? (
+                                                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold uppercase">Low</span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase">Safe</span>
+                                            )}
                                         </td>
                                     </tr>
-                                ))}
+                                )) : (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400 italic">No inventory records found.</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
                 </CardContent>
             </Card>
-
-            <div className="flex flex-col md:flex-row justify-end gap-4 pt-4">
-                <Button onClick={generatePDF} variant="outline" className="border-slate-200 hover:bg-slate-50 h-12">
-                    <Download className="mr-2 h-4 w-4" /> Download Network Report
-                </Button>
-                <Button asChild className="bg-[#25D366] hover:bg-[#128C7E] text-white h-12 shadow-lg shadow-green-500/20">
-                    <a href={whatsappLink} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="mr-2 h-4 w-4" />
-                        WhatsApp Summary
-                    </a>
-                </Button>
-            </div>
-        </div >
+        </div>
     )
 }

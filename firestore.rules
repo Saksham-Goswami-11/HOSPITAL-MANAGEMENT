@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to get user profile
+    function getProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    // Translate get_auth_hospital_id()
+    function getHospitalId() {
+      return getProfile().hospital_id;
+    }
+
+    function isSuperAdmin() {
+      return getProfile().role == 'SUPER_ADMIN';
+    }
+
+    function isAdmin() {
+      return getProfile().role == 'ADMIN' || getProfile().role == 'HOSPITAL_ADMIN';
+    }
+
+    match /profiles/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || getHospitalId() == resource.data.hospital_id || isSuperAdmin());
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /hospitals/{hospitalId} {
+      allow read: if isAuthenticated() && (hospitalId == getHospitalId() || isSuperAdmin());
+    }
+
+    match /clinics/{clinicId} {
+      allow read: if isAuthenticated() && (resource.data.hospital_id == getHospitalId() || isSuperAdmin() || isAdmin());
+      allow write: if isAuthenticated() && (request.resource.data.hospital_id == getHospitalId() && (isSuperAdmin() || isAdmin()));
+    }
+
+    match /staff_details/{staffId} {
+      allow read, write: if isAuthenticated() && (resource.data.hospital_id == getHospitalId() || isSuperAdmin() || isAdmin());
+    }
+
+    match /sales/{saleId} {
+      allow read, write: if isAuthenticated() && (resource.data.hospital_id == getHospitalId() || isSuperAdmin() || isAdmin());
+    }
+
+    match /inventory/{itemId} {
+      allow read, write: if isAuthenticated() && (resource.data.hospital_id == getHospitalId() || isSuperAdmin() || isAdmin());
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, Loader2, Building2, User } from 'lucide-react'
 import { Input } from '@/components/ui/basic'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 
 interface GlobalSearchProps {
     onNavigate: (type: 'hospital' | 'user', id: string) => void
@@ -42,15 +42,32 @@ export function GlobalSearch({ onNavigate, className }: GlobalSearchProps) {
         setLoading(true)
         setShowResults(true)
         try {
-            // Parallel Queries
-            const [hospRes, userRes] = await Promise.all([
-                supabase.from('hospitals').select('id, name').ilike('name', `%${query}%`).limit(5),
-                supabase.from('profiles').select('id, full_name, email, role').or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(5)
+            // Parallel Queries using abstracted db.list
+            // Note: Since Firestore lacks native 'ilike' and complex 'or', we perform a broader 
+            // query if Firebase is active, or use exact/prefix matching. 
+            // For a production app with Firestore, Algolia or Typesense is highly recommended.
+            const [hospData, userData] = await Promise.all([
+                db.list('hospitals', {
+                    limit: 50 // Fetch more for client side filtering if needed
+                }),
+                db.list('profiles', {
+                    limit: 50
+                })
             ])
 
+            // Client-side filtering to ensure consistent behavior across both backends for search
+            const q = query.toLowerCase();
+            const filteredHospitals = (hospData || []).filter(h =>
+                h.name?.toLowerCase().includes(q)
+            ).slice(0, 5);
+
+            const filteredUsers = (userData || []).filter(u =>
+                u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+            ).slice(0, 5);
+
             setResults({
-                hospitals: hospRes.data || [],
-                users: userRes.data || []
+                hospitals: filteredHospitals,
+                users: filteredUsers
             })
         } catch (err) {
             console.error(err)

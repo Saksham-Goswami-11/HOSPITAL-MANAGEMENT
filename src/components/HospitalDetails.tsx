@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/basic'
 import { Button } from '@/components/ui/basic'
 import {
@@ -18,7 +18,6 @@ export function HospitalDetails({ hospitalId, onBack }: HospitalDetailsProps) {
     const { toast } = useToast()
     const [hospital, setHospital] = useState<any>(null)
     const [owner, setOwner] = useState<any>(null)
-    // Stats now come directly from hospital_stats_view in 'hospital' state
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -28,36 +27,37 @@ export function HospitalDetails({ hospitalId, onBack }: HospitalDetailsProps) {
     const fetchDetails = async () => {
         setLoading(true)
         try {
-            // 1. Fetch Hospital Metadata & Stats
-            const { data: hospData, error: hospError } = await supabase
-                .from('hospital_stats_view')
-                .select('*')
-                .eq('id', hospitalId)
-                .single()
+            // 1. Fetch Hospital Metadata & Stats from View using abstracted db.get (or db.list with filter)
+            const hospData = await db.list('hospital_stats_view', {
+                filters: [{ column: 'id', operator: 'eq', value: hospitalId }],
+                limit: 1
+            })
 
-            if (hospError) throw hospError
-            setHospital(hospData)
+            if (!hospData || hospData.length === 0) throw new Error("Hospital not found");
+            const hospitalRecord = hospData[0];
+            setHospital(hospitalRecord)
 
             // 2. Fetch Owner Info
             let finalOwner = null;
 
             // Try fetching by owner_id if present
-            if (hospData.owner_id) {
-                const { data } = await supabase.from('profiles').select('*').eq('id', hospData.owner_id).single();
-                finalOwner = data;
+            if (hospitalRecord.owner_id) {
+                finalOwner = await db.get('profiles', hospitalRecord.owner_id);
             }
 
             // Fallback: Find any Hospital Admin linked to this hospital if no direct owner_id
             if (!finalOwner) {
-                const { data: fallbackOwner } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('hospital_id', hospitalId)
-                    .eq('role', 'HOSPITAL_ADMIN')
-                    .limit(1)
-                    .maybeSingle();
+                const admins = await db.list('profiles', {
+                    filters: [
+                        { column: 'hospital_id', operator: 'eq', value: hospitalId },
+                        { column: 'role', operator: 'eq', value: 'HOSPITAL_ADMIN' }
+                    ],
+                    limit: 1
+                });
 
-                finalOwner = fallbackOwner;
+                if (admins && admins.length > 0) {
+                    finalOwner = admins[0];
+                }
             }
 
             setOwner(finalOwner);
@@ -115,7 +115,7 @@ export function HospitalDetails({ hospitalId, onBack }: HospitalDetailsProps) {
                     </div>
                     <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
                         <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">ID: {hospital.id}</span>
-                        <span>•</span>
+                        <span>\u2022</span>
                         <span>Joined {new Date(hospital.created_at).toLocaleDateString()}</span>
                     </p>
                 </div>

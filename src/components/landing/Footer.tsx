@@ -29,11 +29,8 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-slate-900 font-bold mb-6">Solutions</h4>
             <ul className="space-y-4 text-sm">
-              <li><Link to="/solutions" className="text-slate-600 hover:text-primary transition-colors">Clinic Interface</Link></li>
-              <li><Link to="/solutions" className="text-slate-600 hover:text-primary transition-colors">Hospital Interface</Link></li>
-              <li><Link to="/solutions" className="text-slate-600 hover:text-primary transition-colors">Telehealth</Link></li>
-              <li><Link to="/solutions" className="text-slate-600 hover:text-primary transition-colors">Revenue Cycle</Link></li>
-              <li><Link to="/solutions" className="text-slate-600 hover:text-primary transition-colors">Patient Engagement</Link></li>
+              <li><Link to="/clinic-operations" className="text-slate-600 hover:text-primary transition-colors">Clinic Interface</Link></li>
+              <li><Link to="/hospital-command-center" className="text-slate-600 hover:text-primary transition-colors">Hospital Interface</Link></li>
             </ul>
           </div>
 
@@ -51,10 +48,8 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-slate-900 font-bold mb-6">Connect</h4>
             <ul className="space-y-4 text-sm">
-              <li><Link to="/support" className="text-slate-600 hover:text-primary transition-colors">Newsletter</Link></li>
               <li><Link to="/support" className="text-slate-600 hover:text-primary transition-colors">Support Portal</Link></li>
               <li><Link to="/support" className="text-slate-600 hover:text-primary transition-colors">Help Center</Link></li>
-              <li><Link to="/support" className="text-slate-600 hover:text-primary transition-colors">Developer API</Link></li>
             </ul>
           </div>
         </div>

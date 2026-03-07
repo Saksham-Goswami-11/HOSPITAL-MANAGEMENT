@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 
 // ─── Types ───────────────────────────────────────────────────
 export type PlanFeatures = {
@@ -87,6 +87,9 @@ export interface SubscriptionContextValue {
     // State helpers
     isTrialing: boolean;
     isTrialExtended: boolean;
+    isExpired: boolean;
+    isTestingPlan: boolean;
+    isExtendedTestingPlan: boolean;
     daysLeftInTrial: number;
     isPastDue: boolean;
     isFree: boolean;
@@ -172,57 +175,63 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
         }
 
         try {
-            // Parallel fetches
-            const [subResult, plansResult, usageResult] = await Promise.all([
-                // 1. Active subscription with plan details
-                supabase
-                    .from('subscriptions')
-                    .select('*, plans(*)')
-                    .eq('hospital_id', hospitalId)
-                    .in('status', ['trialing', 'active', 'past_due'])
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single(),
+            // Parallel fetches using abstracted db service
+            const [subData, plansData, usageData] = await Promise.all([
+                // 1. Active subscription
+                db.list('subscriptions', {
+                    filters: [
+                        { column: 'hospital_id', operator: 'eq', value: hospitalId },
+                        { column: 'status', operator: 'in', value: ['trialing', 'trial_extended', 'active', 'past_due', 'expired'] }
+                    ],
+                    sort: { column: 'created_at', ascending: false },
+                    limit: 1
+                }),
 
                 // 2. All available plans
-                supabase
-                    .from('plans')
-                    .select('*')
-                    .eq('is_active', true)
-                    .order('sort_order', { ascending: true }),
+                db.list('plans', {
+                    filters: [{ column: 'is_active', operator: 'eq', value: true }],
+                    sort: { column: 'sort_order', ascending: true }
+                }),
 
                 // 3. Usage metrics for current period
-                supabase
-                    .from('usage_metrics')
-                    .select('metric_key, current_value, period')
-                    .eq('hospital_id', hospitalId)
-                    .eq('period', currentPeriod),
+                db.list('usage_metrics', {
+                    filters: [
+                        { column: 'hospital_id', operator: 'eq', value: hospitalId },
+                        { column: 'period', operator: 'eq', value: currentPeriod }
+                    ]
+                })
             ]);
 
             // Set subscription and plan
-            if (subResult.data) {
-                setSubscription(subResult.data);
-                setPlan(subResult.data.plans || null);
+            if (subData && subData.length > 0) {
+                const sub = subData[0];
+                setSubscription(sub);
+
+                // Fetch full plan details if needed (Supabase usually joins with select('*', plans(*)), but for DataService abstraction we might need to fetch separately if not handled)
+                // Assuming DataService doesn't do joins automatically, let's fetch plan if sub has plan_id
+                if (sub.plan_id) {
+                    const planDetails = await db.get('plans', sub.plan_id);
+                    setPlan(planDetails);
+                }
             } else {
-                // No active subscription — default to free
                 setSubscription(null);
                 setPlan(null);
             }
 
             // Set all plans
-            if (plansResult.data) {
-                setAllPlans(plansResult.data);
+            if (plansData) {
+                setAllPlans(plansData);
                 // If no subscription, at least set the free plan
-                if (!subResult.data && plansResult.data.length > 0) {
-                    const freePlan = plansResult.data.find(p => p.slug === 'free');
+                if (!subData?.length && plansData.length > 0) {
+                    const freePlan = plansData.find(p => p.slug === 'free');
                     if (freePlan) setPlan(freePlan);
                 }
             }
 
             // Set usage metrics
-            if (usageResult.data) {
+            if (usageData) {
                 const usageMap = { ...DEFAULT_USAGE };
-                for (const metric of usageResult.data as UsageMetric[]) {
+                for (const metric of usageData as UsageMetric[]) {
                     if (metric.metric_key in usageMap) {
                         (usageMap as any)[metric.metric_key] = metric.current_value;
                     }
@@ -243,14 +252,17 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
     // ─── Derived Values ─────────────────────────────────────
     const isTrialing = subscription?.status === 'trialing';
     const isTrialExtended = subscription?.status === 'trial_extended';
+    const isExpired = subscription?.status === 'expired';
     const isInTrial = isTrialing || isTrialExtended;
     const isPastDue = subscription?.status === 'past_due';
     const isPaused = subscription?.status === 'paused';
     const isFree = !plan;
     const isActive = subscription?.status === 'active' || isInTrial;
-    const isReadOnly = subscription?.is_read_only === true || isPaused;
+    const isReadOnly = subscription?.is_read_only === true || isPaused || isExpired;
     const canExtendTrial = isTrialing && !isTrialExtended;
     const dataDeletesAt = subscription?.data_deletion_scheduled_at || null;
+    const isTestingPlan = plan?.slug === 'testing';
+    const isExtendedTestingPlan = plan?.slug === 'extended_testing';
 
     // During trial, unlock ALL features with generous limits
     const limits = useMemo<PlanLimits | null>(() => {
@@ -272,7 +284,6 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
         (feature: keyof PlanFeatures): boolean => {
             if (!limits) return false;
             const val = limits.features[feature];
-            // boolean features: false = locked, anything else = unlocked
             return val !== false && val !== undefined;
         },
         [limits]
@@ -283,7 +294,7 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
             if (!limits) return 0;
             const limitKey = METRIC_TO_LIMIT_KEY[metric];
             const val = (limits as any)[limitKey] as number;
-            return val ?? 0; // -1 = unlimited
+            return val ?? 0;
         },
         [limits]
     );
@@ -291,7 +302,7 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
     const isAtLimit = useCallback(
         (metric: keyof UsageMetrics): boolean => {
             const max = getLimit(metric);
-            if (max === -1) return false; // unlimited
+            if (max === -1) return false;
             return usage[metric] >= max;
         },
         [usage, getLimit]
@@ -300,7 +311,7 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
     const getUsagePercent = useCallback(
         (metric: keyof UsageMetrics): number => {
             const max = getLimit(metric);
-            if (max === -1) return 0; // unlimited shows 0% (never at risk)
+            if (max === -1) return 0;
             if (max === 0) return 100;
             return Math.min(100, Math.round((usage[metric] / max) * 100));
         },
@@ -330,6 +341,9 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
         getLimit,
         isTrialing,
         isTrialExtended,
+        isExpired,
+        isTestingPlan,
+        isExtendedTestingPlan,
         daysLeftInTrial,
         isPastDue,
         isFree,

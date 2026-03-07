@@ -1,16 +1,12 @@
 import { useState } from 'react'
-import { useHospital } from '@/context/HospitalContext'
-import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/basic'
-import { Input } from '@/components/ui/basic'
-import { Label } from '@/components/ui/basic'
+import { authService as auth } from '@/lib/authService'
+import { Button, Input, PasswordInput, Label } from '@/components/ui/basic'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/basic'
 import { Lock, Mail, Loader2, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 
 export function LoginPage() {
-    const { requestPasswordReset } = useHospital()
     const [isForgotMode, setIsForgotMode] = useState(false)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -26,7 +22,7 @@ export function LoginPage() {
         try {
             if (isForgotMode) {
                 // PASSWORD RECOVERY
-                await requestPasswordReset(email)
+                await auth.resetPassword(email)
                 toast({
                     title: 'Recovery Link Sent',
                     description: 'Check your email for the password reset link.',
@@ -34,19 +30,11 @@ export function LoginPage() {
                 })
                 setIsForgotMode(false)
             } else {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                })
-                if (error) throw error
+                await auth.signIn(email, password)
             }
         } catch (err: any) {
             console.error("Auth Error:", err)
-            if (err.status === 429 || (err.message && err.message.includes("429"))) {
-                setError("Supabase rate limit hit. Please wait 15 minutes.")
-            } else {
-                setError(err.message || 'An unexpected error occurred')
-            }
+            setError(err.message || 'An unexpected error occurred')
 
             toast({
                 title: 'Authentication Failed',
@@ -118,13 +106,12 @@ export function LoginPage() {
                                 </div>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                                    <Input
+                                    <PasswordInput
                                         id="password"
-                                        type="password"
                                         placeholder="••••••••"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all"
+                                        className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl"
                                         required
                                         minLength={6}
                                     />

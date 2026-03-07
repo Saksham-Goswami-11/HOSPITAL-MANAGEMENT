@@ -16,6 +16,16 @@ const PLAN_ICONS: Record<string, any> = {
 };
 
 const PLAN_COLORS: Record<string, { gradient: string; badge: string; ring: string }> = {
+    testing: {
+        gradient: 'from-teal-500 to-cyan-600',
+        badge: 'bg-teal-100 text-teal-700',
+        ring: 'ring-teal-200',
+    },
+    extended_testing: {
+        gradient: 'from-cyan-500 to-sky-600',
+        badge: 'bg-cyan-100 text-cyan-700',
+        ring: 'ring-cyan-200',
+    },
     starter: {
         gradient: 'from-blue-500 to-blue-600',
         badge: 'bg-blue-100 text-blue-700',
@@ -136,7 +146,7 @@ export function UpgradeModal({ isOpen, onClose, highlightPlan }: UpgradeModalPro
                     {/* Plans Grid */}
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {billing.allPlans.filter(p => p.is_active && p.slug !== 'free').map((plan) => {
+                            {billing.allPlans.filter(p => p.is_active && !['free', 'testing', 'extended_testing'].includes(p.slug)).map((plan) => {
                                 const isCurrentPlan = plan.slug === currentSlug;
                                 const isHighlighted = plan.slug === (highlightPlan || 'professional');
                                 const colors = PLAN_COLORS[plan.slug] || PLAN_COLORS.starter;

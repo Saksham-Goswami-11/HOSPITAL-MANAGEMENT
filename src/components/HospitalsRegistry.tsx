@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useToast } from '@/components/ui/use-toast'
 import { GlobalSearch } from './GlobalSearch'
 
@@ -24,12 +24,9 @@ export function HospitalsRegistry({ onView }: HospitalsRegistryProps) {
     const fetchHospitals = async () => {
         try {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('hospital_stats_view')
-                .select('*')
-                .order('created_at', { ascending: false })
-
-            if (error) throw error
+            const data = await db.list('hospital_stats_view', {
+                sort: { column: 'created_at', ascending: false }
+            })
             setHospitals(data || [])
         } catch (error) {
             console.error("Error fetching hospitals:", error)
@@ -41,12 +38,7 @@ export function HospitalsRegistry({ onView }: HospitalsRegistryProps) {
 
     const toggleHospitalStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
-                .from('hospitals')
-                .update({ is_active: !currentStatus })
-                .eq('id', id)
-
-            if (error) throw error
+            await db.update('hospitals', id, { is_active: !currentStatus })
 
             setHospitals(prev => prev.map(h => h.id === id ? { ...h, is_active: !currentStatus } : h))
 
@@ -118,7 +110,6 @@ export function HospitalsRegistry({ onView }: HospitalsRegistryProps) {
                 </div>
 
                 <div className="mt-4 md:mt-0 w-full md:w-auto self-stretch">
-                    {/* The existing GlobalSearch is integrated here for system-wide lookup if needed */}
                     <div className="w-full max-w-sm hidden md:block">
                         <GlobalSearch
                             className="w-full"

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { createClient } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
+import { authService } from '@/lib/authService'
 import { useToast } from '@/components/ui/use-toast'
 import { GlobalSearch } from './GlobalSearch'
 import { Input, Label, Button } from '@/components/ui/basic'
@@ -51,13 +51,10 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
         try {
             setLoading(true)
             // 1. Hospital List & Stats from View
-            const { data: hospitalList, error } = await supabase
-                .from('hospital_stats_view')
-                .select('*')
-                .order('created_at', { ascending: false })
+            const hospitalList = await db.list('hospital_stats_view', {
+                sort: { column: 'created_at', ascending: false }
+            })
 
-            if (error) throw error
-            setHospitals(hospitalList || [])
             setHospitals(hospitalList || [])
 
             // Calculate aggregations
@@ -79,11 +76,10 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
             })
 
             // 2. System Activity Logs
-            const { data: logs } = await supabase
-                .from('audit_logs')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(10)
+            const logs = await db.list('audit_logs', {
+                sort: { column: 'created_at', ascending: false },
+                limit: 10
+            })
 
             if (logs) setSystemLogs(logs)
 
@@ -123,42 +119,25 @@ export function SuperAdminDashboard({ onView }: SuperAdminDashboardProps) {
         const adminName = formData.get('admin_name') as string
 
         try {
-            // 1. Create temporary auth client
-            const tempSupabase = createClient(
-                import.meta.env.VITE_SUPABASE_URL,
-                import.meta.env.VITE_SUPABASE_ANON_KEY
-            )
-
             toast({ title: 'Registration Started', description: 'Creating hospital & admin account...', duration: 3000 })
 
-            // 2. Sign up new hospital admin
-            const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-                email: adminEmail,
-                password: adminPassword,
-                options: {
-                    data: { full_name: adminName, role: 'HOSPITAL_ADMIN' }
-                }
+            // 1. Sign up new hospital admin using abstracted authService
+            // Note: This might cause a session switch in some providers if not handled on backend.
+            // Ideally, this should be done via a secure RPC that handles both user creation and hospital setup.
+            const user = await authService.signUp(adminEmail, adminPassword, {
+                full_name: adminName,
+                role: 'HOSPITAL_ADMIN'
             })
 
-            if (authError) throw authError
-            if (!authData.user) throw new Error("No user created")
+            if (!user) throw new Error("No user created")
 
-            // CRITICAL: Supabase's "prevent email enumeration" returns a fake user (with a fake UUID and empty identities) if the email already exists.
-            // This fake UUID causes the foreign key constraint failure on 'hospitals_owner_id_fkey'.
-            if (authData.user?.identities && authData.user.identities.length === 0) {
-                throw new Error("This email is already registered to another user. Please use a different email for the new administrator.")
-            }
-
-            // 3. Call secure RPC to create hospital and bypass RLS
-            // @ts-ignore - super_admin_create_hospital is not in the generated schema types yet
-            const { data: newHospitalId, error: rpcError } = await supabase.rpc('super_admin_create_hospital', {
+            // 2. Call secure RPC to create hospital and bypass RLS
+            await db.callRpc('super_admin_create_hospital', {
                 hospital_name: hospitalName,
                 hospital_slug: hospitalSlug,
-                admin_user_id: authData.user.id,
+                admin_user_id: user.id,
                 admin_name: adminName
             })
-
-            if (rpcError) throw rpcError
 
             toast({
                 title: '✅ Hospital Onboarded',

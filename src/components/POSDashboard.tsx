@@ -4,14 +4,14 @@ import { Button, Input, Label } from '@/components/ui/basic'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
 
 type POSView = 'pharmacy' | 'consultation';
 
 export function POSDashboard() {
-    const { profile, clinics, inventory } = useHospital();
+    const { profile, clinics, inventory, billing } = useHospital();
     const { toast } = useToast();
 
     // Context & Routing
@@ -53,7 +53,16 @@ export function POSDashboard() {
         i.clinic_id === selectedClinicId &&
         i.quantity > 0 &&
         (i.item_name.toLowerCase().includes(currentSearch.toLowerCase()) || i.batch_number.toLowerCase().includes(currentSearch.toLowerCase()))
-    );
+    ).sort((a, b) => {
+        const nameA = a.item_name.toLowerCase();
+        const nameB = b.item_name.toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        // Same name, sort by expiry date ascending (older expiry first)
+        const dateA = new Date(a.expiry_date).getTime();
+        const dateB = new Date(b.expiry_date).getTime();
+        return dateA - dateB;
+    });
 
     // Auto-select clinic if staff belongs to one
     useEffect(() => {
@@ -66,12 +75,21 @@ export function POSDashboard() {
         e.preventDefault();
         if (!selectedClinicId) return;
 
+        if (billing?.isAtLimit('monthly_sales')) {
+            toast({
+                title: "Limit Reached",
+                description: "Monthly sales limit reached. Upgrade plan to process more transactions.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         setIsProcessing(true);
         try {
             const amount = parseFloat(consultationFee);
             if (isNaN(amount) || amount <= 0) throw new Error("Invalid Consultation Fee");
 
-            const { data, error } = await supabase.rpc('process_sale', {
+            const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
                 p_patient_name: patientName,
@@ -82,12 +100,10 @@ export function POSDashboard() {
                 p_items: [] // No inventory items for consultation
             });
 
-            if (error) throw error;
-
             toast({ title: 'Success', description: 'Consultation Recorded.', className: 'bg-green-50 border-green-200 text-green-900' });
 
             // Show receipt
-            const recordedSale = { id: data, patient_name: patientName, doctor_name: doctorName, amount: amount, payment_mode: paymentMode, sale_type: 'CONSULTATION' };
+            const recordedSale = { id: saleId, patient_name: patientName, doctor_name: doctorName, amount: amount, payment_mode: paymentMode, sale_type: 'CONSULTATION' };
             setLastSaleData(recordedSale);
             setLastSaleItems([{ item_name: 'Consultation Fee', quantity: 1, price: amount }]);
             setIsReceiptOpen(true);
@@ -176,11 +192,20 @@ export function POSDashboard() {
             return;
         }
 
+        if (billing?.isAtLimit('monthly_sales')) {
+            toast({
+                title: "Limit Reached",
+                description: "Monthly sales limit reached. Upgrade plan to process more transactions.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         setIsProcessing(true);
         try {
             const saleItems = cart.map(c => ({ inventory_id: c.id, quantity: c.quantity, price: c.price }));
 
-            const { data, error } = await supabase.rpc('process_sale', {
+            const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
                 p_patient_name: patientName,
@@ -191,11 +216,9 @@ export function POSDashboard() {
                 p_items: saleItems
             });
 
-            if (error) throw error;
-
             toast({ title: 'Success', description: 'Pharmacy Checkout Complete.', className: 'bg-green-50 border-green-200 text-green-900' });
 
-            const recordedSale = { id: data, patient_name: patientName, doctor_name: doctorName, amount: cartTotal, payment_mode: paymentMode, sale_type: 'PHARMACY' };
+            const recordedSale = { id: saleId, patient_name: patientName, doctor_name: doctorName, amount: cartTotal, payment_mode: paymentMode, sale_type: 'PHARMACY' };
             setLastSaleData(recordedSale);
             setLastSaleItems(cart.map(c => ({ item_name: c.name, quantity: c.quantity, price: c.price })));
             setIsReceiptOpen(true);
@@ -219,12 +242,12 @@ export function POSDashboard() {
                 <p className="text-slate-500 mb-8">Choose the designated clinic to start billing and POS operations.</p>
                 <div className="space-y-3">
                     {clinics.map(c => (
-                        <button key={c.id} className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 hover:border-blue-600 focus:border-blue-600 bg-slate-50 hover:bg-white focus:bg-white transition-all group" onClick={() => setSelectedClinicId(c.id)}>
+                        <button key={c.id} disabled={c.status === 'paused'} className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all group ${c.status === 'paused' ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60' : 'border-slate-100 hover:border-blue-600 focus:border-blue-600 bg-slate-50 hover:bg-white focus:bg-white'}`} onClick={() => setSelectedClinicId(c.id)}>
                             <div className="flex items-center gap-4">
-                                <span className="material-symbols-outlined text-slate-400 group-hover:text-blue-600">location_on</span>
-                                <span className="font-bold text-slate-700 group-hover:text-slate-900">{c.name}</span>
+                                <span className={`material-symbols-outlined ${c.status === 'paused' ? 'text-slate-300' : 'text-slate-400 group-hover:text-blue-600'}`}>location_on</span>
+                                <span className={`font-bold ${c.status === 'paused' ? 'text-slate-400' : 'text-slate-700 group-hover:text-slate-900'}`}>{c.name} {c.status === 'paused' && <span className="text-red-500 font-medium ml-2 text-sm px-2 py-0.5 bg-red-50 rounded-full border border-red-100">Paused</span>}</span>
                             </div>
-                            <span className="material-symbols-outlined text-slate-300 group-hover:text-blue-600">chevron_right</span>
+                            <span className={`material-symbols-outlined ${c.status === 'paused' ? 'text-slate-200' : 'text-slate-300 group-hover:text-blue-600'}`}>chevron_right</span>
                         </button>
                     ))}
                 </div>

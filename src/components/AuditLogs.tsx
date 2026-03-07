@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useToast } from '@/components/ui/use-toast'
 
 export function AuditLogs() {
@@ -20,13 +20,10 @@ export function AuditLogs() {
     const fetchLogs = async () => {
         try {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('audit_logs')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(100)
-
-            if (error) throw error
+            const data = await db.list('audit_logs', {
+                sort: { column: 'created_at', ascending: false },
+                limit: 100
+            })
             setLogs(data || [])
         } catch (error) {
             console.error("Error fetching logs:", error)
@@ -89,7 +86,7 @@ export function AuditLogs() {
         const datePart = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         const timePart = date.toLocaleTimeString(undefined, { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const msPart = String(date.getMilliseconds()).padStart(2, '0').substring(0, 2)
-        return `${datePart} • ${timePart}.${msPart}`
+        return `${datePart} \u2022 ${timePart}.${msPart}`
     }
 
     return (

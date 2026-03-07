@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { dataService as db } from '@/lib/dataService'
 import * as XLSX from 'xlsx'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -12,19 +12,35 @@ interface InventoryDashboardProps {
 }
 
 export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps) {
-    const { inventory, profile: userProfile, clinics, refreshData, hospital, updateInventoryItem } = useHospital()
+    const { inventory, profile: userProfile, clinics, refreshData, hospital, updateInventoryItem, billing, pendingRestockId, setPendingRestockId } = useHospital()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [syncing, setSyncing] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [filterClinicId, setFilterClinicId] = useState('all')
     const [editingItem, setEditingItem] = useState<any>(null)
+    const [restockItem, setRestockItem] = useState<any>(null)
     const [filterType, setFilterType] = useState<'all' | 'low' | 'expired'>('all')
     const [isFullScreen, setIsFullScreen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Effective Clinic: Override > Profile Clinic > Null (All)
     const effectiveClinicId = clinicIdOverride || userProfile?.clinic_id
+
+    // Check if user has permission to edit inventory
+    const canEditInventory = ['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(userProfile?.role || '');
+
+    // Handle pending restock from notifications
+    useEffect(() => {
+        if (pendingRestockId && inventory.length > 0) {
+            const item = inventory.find(i => i.id === pendingRestockId);
+            if (item) {
+                setRestockItem(item);
+                // Clear the pending ID so it doesn't re-open
+                setPendingRestockId(null);
+            }
+        }
+    }, [pendingRestockId, inventory, setPendingRestockId]);
 
     const now = new Date();
 
@@ -80,27 +96,57 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             return
         }
 
-        const { error } = await supabase
-            .from('inventory')
-            .insert([{
-                clinic_id: targetClinicId,
-                hospital_id: hospital?.id || userProfile?.hospital_id,
-                item_name,
-                quantity: quantity,
-                mrp: mrp,
-                batch_number,
-                expiry_date,
-                threshold: hospital?.settings?.global_low_stock_threshold || 20 // Default to global threshold
-            }])
+        try {
+            const existingItems = inventory.filter(i =>
+                i.clinic_id === targetClinicId &&
+                i.item_name.toLowerCase() === item_name.toLowerCase() &&
+                i.batch_number.toLowerCase() === batch_number.toLowerCase() &&
+                i.expiry_date === expiry_date
+            );
 
-        if (error) {
-            toast({ title: 'Error', description: error.message, variant: 'destructive' })
-        } else {
-            toast({ title: 'Success', description: 'Stock added successfully' });
+            if (existingItems.length > 0) {
+                // Update existing
+                const existingItem = existingItems[0];
+                await updateInventoryItem(existingItem.id, {
+                    quantity: existingItem.quantity + quantity
+                });
+                toast({ title: 'Success', description: `Added ${quantity} to existing stock batch.` });
+            } else {
+                if (billing?.isAtLimit('inventory_items')) {
+                    toast({
+                        title: 'Limit Reached',
+                        description: `Your current plan allows a maximum of ${billing?.getLimit('inventory_items')} inventory items. Please upgrade to add more unique items.`,
+                        variant: 'destructive'
+                    });
+                    setLoading(false);
+                    return;
+                }
+
+                // Insert new
+                await db.create('inventory', {
+                    clinic_id: targetClinicId,
+                    hospital_id: hospital?.id || userProfile?.hospital_id,
+                    item_name,
+                    quantity: quantity,
+                    mrp: mrp,
+                    batch_number,
+                    expiry_date,
+                    threshold: hospital?.settings?.global_low_stock_threshold || 20 // Default to global threshold
+                });
+                toast({ title: 'Success', description: 'New stock batch added successfully' });
+            }
+
             (e.target as HTMLFormElement).reset()
             refreshData()
+
+            if (restockItem) {
+                setRestockItem(null)
+            }
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' })
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
     async function handleEditSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -242,9 +288,19 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                 }
             })
 
-            const { error } = await supabase.from('inventory').insert(insertPayloads)
+            const remaining = billing?.getRemainingQuota?.('inventory_items') ?? Infinity;
+            if (insertPayloads.length > remaining) {
+                toast({
+                    title: 'Upload Failed',
+                    description: `This file contains ${insertPayloads.length} items, but your plan only allows ${remaining} more. Please reduce the list or upgrade your plan.`,
+                    variant: 'destructive'
+                });
+                setLoading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+                return;
+            }
 
-            if (error) throw error
+            await db.createMany('inventory', insertPayloads)
 
             toast({ title: 'Success', description: `Successfully imported ${insertPayloads.length} items to inventory.`, variant: 'default' })
             refreshData()
@@ -277,6 +333,41 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
         }
     }
 
+    const handleRemoveExpired = async () => {
+        const expiredItems = inventory.filter(i => {
+            const matchesClinicOverride = effectiveClinicId ? i.clinic_id === effectiveClinicId : true;
+            return matchesClinicOverride && new Date(i.expiry_date) < now;
+        });
+
+        if (expiredItems.length === 0) {
+            toast({ title: 'No Expired Items', description: 'There are no expired items to remove.', variant: 'default' });
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to permanently remove ${expiredItems.length} expired items? This action cannot be undone.`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await Promise.all(expiredItems.map(item => db.remove('inventory', item.id)));
+            toast({
+                title: 'Success',
+                description: `Successfully removed ${expiredItems.length} expired items.`,
+                variant: 'default'
+            });
+            await refreshData();
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to remove some items.',
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className={isFullScreen
             ? "fixed inset-0 z-50 bg-slate-50 p-4 sm:p-6 lg:p-8 flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
@@ -303,7 +394,9 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                         >
                             <option value="all">All Clinics Stock</option>
                             {clinics.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                                <option key={c.id} value={c.id} disabled={c.status === 'paused'}>
+                                    {c.name} {c.status === 'paused' ? '(Paused)' : ''}
+                                </option>
                             ))}
                         </select>
                     )}
@@ -316,18 +409,22 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                         {syncing ? 'Syncing...' : 'Sync DB'}
                     </button>
 
-                    <input
-                        type="file"
-                        accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                        className="hidden"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                    />
+                    {canEditInventory && (
+                        <>
+                            <input
+                                type="file"
+                                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleFileUpload}
+                            />
 
-                    <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap hidden sm:flex disabled:opacity-50">
-                        {loading ? <span className="material-symbols-outlined text-[20px] animate-spin">sync</span> : <span className="material-symbols-outlined text-[20px]">upload_file</span>}
-                        Import Spreadsheet
-                    </button>
+                            <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap hidden sm:flex disabled:opacity-50">
+                                {loading ? <span className="material-symbols-outlined text-[20px] animate-spin">sync</span> : <span className="material-symbols-outlined text-[20px]">upload_file</span>}
+                                Import Spreadsheet
+                            </button>
+                        </>
+                    )}
 
                     <button onClick={handleExportList} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap hidden sm:flex">
                         <span className="material-symbols-outlined text-[20px]">file_download</span>
@@ -367,6 +464,16 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 <span className="material-symbols-outlined text-[16px]">{isFullScreen ? 'fullscreen_exit' : 'fullscreen'}</span>
                                 {isFullScreen ? 'COLLAPSE' : 'EXPAND TABLE'}
                             </button>
+                            {canEditInventory && expiredCount > 0 && (
+                                <button
+                                    onClick={handleRemoveExpired}
+                                    disabled={loading}
+                                    className="flex items-center gap-1 px-4 py-2 rounded-full text-xs font-bold transition-all bg-red-600 text-white hover:bg-red-700 border border-red-700 shadow-sm ml-2 disabled:opacity-50"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+                                    REMOVE EXPIRED
+                                </button>
+                            )}
                         </div>
                         <div className="relative w-full sm:w-64">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
@@ -389,13 +496,13 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                     <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Batch No</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Expiry</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Stock Level</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white text-right">Actions</th>
+                                    {canEditInventory && <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {filteredInventory.length === 0 ? (
                                     <tr>
-                                        <td colSpan={effectiveClinicId ? 5 : 6} className="px-6 py-12 text-center text-slate-400 bg-slate-50/50">
+                                        <td colSpan={(effectiveClinicId ? 4 : 5) + (canEditInventory ? 1 : 0)} className="px-6 py-12 text-center text-slate-400 bg-slate-50/50">
                                             <div className="flex flex-col items-center">
                                                 <span className="material-symbols-outlined text-4xl mb-2 opacity-50">inventory_2</span>
                                                 <p>No inventory items match your current filters.</p>
@@ -450,15 +557,22 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                        <button
-                                                            onClick={() => setEditingItem(item)}
-                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit Item">
-                                                            <span className="material-symbols-outlined text-[20px]">edit_square</span>
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                                {canEditInventory && (
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => setRestockItem(item)}
+                                                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Restock Item">
+                                                                <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingItem(item)}
+                                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit Item">
+                                                                <span className="material-symbols-outlined text-[20px]">edit_square</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
                                         )
                                     })
@@ -483,68 +597,70 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                 {/* RIGHT SIDEBAR SECTION (30%) */}
                 {!isFullScreen && (
                     <div className="w-full lg:w-[380px] xl:w-[420px] bg-slate-50/30 p-6 lg:p-8 overflow-y-auto shrink-0 flex flex-col border-t lg:border-t-0 border-slate-100 relative">
-                        <div className="mb-10 lg:sticky lg:top-0 h-fit pb-4 z-10">
-                            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6 tracking-tight">
-                                <span className="material-symbols-outlined text-blue-600 p-1.5 bg-blue-100 rounded-lg">add_box</span>
-                                Quick Stock Entry
-                            </h2>
+                        {canEditInventory && (
+                            <div className="mb-10 lg:sticky lg:top-0 h-fit pb-4 z-10">
+                                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6 tracking-tight">
+                                    <span className="material-symbols-outlined text-blue-600 p-1.5 bg-blue-100 rounded-lg">add_box</span>
+                                    Quick Stock Entry
+                                </h2>
 
-                            <form onSubmit={handleRestock} className="space-y-5 bg-white p-5 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100">
-                                {!effectiveClinicId && (
+                                <form onSubmit={handleRestock} className="space-y-5 bg-white p-5 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100">
+                                    {!effectiveClinicId && (
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Target Clinic Location*</label>
+                                            <div className="relative">
+                                                <select name="clinic_id" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm appearance-none" required>
+                                                    <option value="">Select Clinic</option>
+                                                    {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                </select>
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">domain</span>
+                                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Target Clinic Location*</label>
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Item Reference Name</label>
                                         <div className="relative">
-                                            <select name="clinic_id" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm appearance-none" required>
-                                                <option value="">Select Clinic</option>
-                                                {clinics.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                            </select>
-                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none">domain</span>
-                                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">medical_information</span>
+                                            <input name="item_name" required className="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="e.g. Saline Bottle 1L" type="text" />
                                         </div>
                                     </div>
-                                )}
 
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Item Reference Name</label>
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">medical_information</span>
-                                        <input name="item_name" required className="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="e.g. Saline Bottle 1L" type="text" />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Qty Added</label>
-                                        <div className="relative">
-                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">format_list_numbered</span>
-                                            <input name="quantity" required min="1" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0" type="number" />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Qty Added</label>
+                                            <div className="relative">
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">format_list_numbered</span>
+                                                <input name="quantity" required min="1" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0" type="number" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Unit MRP (₹)</label>
+                                            <div className="relative">
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">currency_rupee</span>
+                                                <input name="mrp" required step="0.01" min="0" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0.00" type="number" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Batch #</label>
+                                            <input name="batch_number" required className="w-full bg-slate-50 border-slate-200 rounded-lg px-3 py-2.5 text-xs font-mono font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="E.g. B-012" type="text" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Expiry Date</label>
+                                            <input name="expiry_date" required className="w-full bg-slate-50 border-slate-200 rounded-lg px-3 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" type="date" />
                                         </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Unit MRP (₹)</label>
-                                        <div className="relative">
-                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">currency_rupee</span>
-                                            <input name="mrp" required step="0.01" min="0" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0.00" type="number" />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Batch #</label>
-                                        <input name="batch_number" required className="w-full bg-slate-50 border-slate-200 rounded-lg px-3 py-2.5 text-xs font-mono font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="E.g. B-012" type="text" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Expiry Date</label>
-                                        <input name="expiry_date" required className="w-full bg-slate-50 border-slate-200 rounded-lg px-3 py-2.5 text-xs font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" type="date" />
-                                    </div>
-                                </div>
 
-                                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70 disabled:hover:translate-y-0 text-sm">
-                                    {loading ? <span className="material-symbols-outlined animate-spin text-xl">sync</span> : <span className="material-symbols-outlined text-xl">inventory_2</span>}
-                                    {loading ? 'Adding Stock...' : 'Commit to Inventory'}
-                                </button>
-                            </form>
-                        </div>
+                                    <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-70 disabled:hover:translate-y-0 text-sm">
+                                        {loading ? <span className="material-symbols-outlined animate-spin text-xl">sync</span> : <span className="material-symbols-outlined text-xl">inventory_2</span>}
+                                        {loading ? 'Adding Stock...' : 'Commit to Inventory'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
 
-                        <div className="pt-6 border-t border-slate-100 flex-1">
+                        <div className={`pt-6 ${canEditInventory ? 'border-t border-slate-100' : ''} flex-1`}>
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2 uppercase tracking-widest">
                                     <span className="material-symbols-outlined text-slate-400 text-[18px]">history</span>
@@ -575,6 +691,52 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                     </div>
                 )}
             </div>
+
+            {/* RESTOCK ITEM MODAL */}
+            <Dialog open={!!restockItem} onOpenChange={(open) => !open && setRestockItem(null)}>
+                <DialogContent className="sm:max-w-md bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-0 overflow-hidden">
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-emerald-600">add_shopping_cart</span>
+                        </div>
+                        <div>
+                            <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">Restock Item</DialogTitle>
+                            <p className="text-xs text-slate-500 mt-0.5">Add inventory for <span className="font-bold text-slate-700">{restockItem?.item_name}</span></p>
+                        </div>
+                    </div>
+
+                    {restockItem && (
+                        <form onSubmit={handleRestock} className="p-6 space-y-4">
+                            <input type="hidden" name="item_name" value={restockItem.item_name} />
+                            <input type="hidden" name="mrp" value={restockItem.mrp || 0} />
+                            <input type="hidden" name="clinic_id" value={restockItem.clinic_id} />
+
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Quantity to Add</Label>
+                                    <Input name="quantity" type="number" min="1" placeholder="0" className="bg-slate-50 border-slate-200 font-mono font-bold text-slate-900 h-10" required />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Batch Number</Label>
+                                    <Input name="batch_number" placeholder="Enter batch number" className="bg-white border-slate-200 font-mono text-sm h-10" required />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Expiry Date</Label>
+                                    <Input name="expiry_date" type="date" className="bg-white border-slate-200 text-sm h-10" required />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
+                                <Button type="button" variant="outline" onClick={() => setRestockItem(null)} className="border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 bg-white">
+                                    Cancel
+                                </Button>
+                                <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">
+                                    {loading ? 'Adding...' : 'Add to Inventory'}
+                                </Button>
+                            </div>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* EDIT ITEM MODAL */}
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>

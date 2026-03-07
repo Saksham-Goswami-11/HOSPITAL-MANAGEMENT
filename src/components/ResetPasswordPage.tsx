@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useHospital } from "../context/HospitalContext"
-import { Button, Input, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/basic"
+import { Button, PasswordInput, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/basic"
 import { useToast } from "@/components/ui/use-toast"
 import { Lock, Loader2, CheckCircle2 } from "lucide-react"
 
@@ -58,8 +58,7 @@ export function ResetPasswordPage() {
                     <form onSubmit={handleUpdate} className="space-y-4">
                         <div className="space-y-2">
                             <Label>New Password</Label>
-                            <Input
-                                type="password"
+                            <PasswordInput
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
@@ -69,8 +68,7 @@ export function ResetPasswordPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>Confirm Password</Label>
-                            <Input
-                                type="password"
+                            <PasswordInput
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 required

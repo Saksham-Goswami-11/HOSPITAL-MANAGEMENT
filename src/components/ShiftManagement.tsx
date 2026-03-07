@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Loader2, Plus, Pencil, Trash2, Clock, Users, AlertTriangle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button, Input, Label } from '@/components/ui/basic'
@@ -27,7 +27,7 @@ interface StaffMember {
     shift_id: string | null
     department: string
     clinic_id?: string
-    clinics?: any // Handle Supabase join types
+    clinics?: any
 }
 
 interface ShiftManagementProps {
@@ -35,7 +35,7 @@ interface ShiftManagementProps {
 }
 
 export function ShiftManagement({ clinicId }: ShiftManagementProps) {
-    const { hospital } = useHospital()
+    const { hospital, clinics: allClinics } = useHospital()
     const { toast } = useToast()
 
     const [shifts, setShifts] = useState<Shift[]>([])
@@ -66,35 +66,34 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
     const fetchData = async () => {
         setLoading(true)
         try {
-            let shiftsQuery = supabase
-                .from('clinic_shifts')
-                .select('*')
-                .order('start_time', { ascending: true })
-
+            const shiftsFilters: any = {}
             if (clinicId !== 'all') {
-                shiftsQuery = shiftsQuery.eq('clinic_id', clinicId)
+                shiftsFilters.clinic_id = clinicId
             } else if (hospital?.id) {
-                shiftsQuery = shiftsQuery.eq('hospital_id', hospital.id)
+                shiftsFilters.hospital_id = hospital.id
             }
 
-            const { data: shiftsData, error: shiftsError } = await shiftsQuery
+            const shiftsData = await db.list('clinic_shifts', {
+                filters: shiftsFilters,
+                sort: { column: 'start_time', ascending: true }
+            })
 
-            if (shiftsError) throw shiftsError
-
-            let staffQuery = supabase
-                .from('staff_details')
-                .select('id, full_name, role, shift_id, department, clinic_id, clinics(name)')
-                .eq('status', 'Active')
-
+            const staffFilters: any = { status: 'Active' }
             if (clinicId !== 'all') {
-                staffQuery = staffQuery.eq('clinic_id', clinicId)
+                staffFilters.clinic_id = clinicId
             } else if (hospital?.id) {
-                staffQuery = staffQuery.eq('hospital_id', hospital.id)
+                staffFilters.hospital_id = hospital.id
             }
 
-            const { data: staffData, error: staffError } = await staffQuery
+            const staffRawData = await db.list('staff_details', {
+                filters: staffFilters
+            })
 
-            if (staffError) throw staffError
+            // Manually map clinic names since we don't have joins in DataService.list
+            const staffData = staffRawData.map((s: any) => ({
+                ...s,
+                clinics: allClinics.find(c => c.id === s.clinic_id)
+            }))
 
             // Count staff per shift
             const enrichedShifts = (shiftsData || []).map((shift: any) => ({
@@ -118,7 +117,7 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
         setIsSubmitting(true)
 
         try {
-            const { error } = await supabase.from('clinic_shifts').insert({
+            await db.create('clinic_shifts', {
                 clinic_id: clinicId,
                 hospital_id: hospital.id,
                 name: formData.name,
@@ -127,8 +126,6 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
                 grace_minutes: formData.grace_minutes,
                 late_cutoff_minutes: formData.late_cutoff_minutes
             })
-
-            if (error) throw error
 
             toast({ title: 'Shift Created', description: `"${formData.name}" has been added.` })
             setIsCreateOpen(false)
@@ -147,18 +144,13 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
         setIsSubmitting(true)
 
         try {
-            const { error } = await supabase
-                .from('clinic_shifts')
-                .update({
-                    name: formData.name,
-                    start_time: formData.start_time,
-                    end_time: formData.end_time,
-                    grace_minutes: formData.grace_minutes,
-                    late_cutoff_minutes: formData.late_cutoff_minutes
-                })
-                .eq('id', editingShift.id)
-
-            if (error) throw error
+            await db.update('clinic_shifts', editingShift.id, {
+                name: formData.name,
+                start_time: formData.start_time,
+                end_time: formData.end_time,
+                grace_minutes: formData.grace_minutes,
+                late_cutoff_minutes: formData.late_cutoff_minutes
+            })
 
             toast({ title: 'Shift Updated', description: `"${formData.name}" has been updated.` })
             setIsEditOpen(false)
@@ -176,13 +168,7 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
         if (!confirm(`Delete "${shift.name}"? Staff assigned to this shift will be unassigned.`)) return
 
         try {
-            const { error } = await supabase
-                .from('clinic_shifts')
-                .delete()
-                .eq('id', shift.id)
-
-            if (error) throw error
-
+            await db.remove('clinic_shifts', shift.id)
             toast({ title: 'Shift Deleted', description: `"${shift.name}" has been removed.` })
             fetchData()
         } catch (error: any) {
@@ -192,13 +178,7 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
 
     const handleAssignStaff = async (staffId: string, shiftId: string | null) => {
         try {
-            const { error } = await supabase
-                .from('staff_details')
-                .update({ shift_id: shiftId })
-                .eq('id', staffId)
-
-            if (error) throw error
-
+            await db.update('staff_details', staffId, { shift_id: shiftId })
             toast({ title: 'Updated', description: 'Staff shift assignment updated.' })
             fetchData()
         } catch (error: any) {
@@ -228,6 +208,7 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
     }
 
     const formatTime = (time: string) => {
+        if (!time) return '--:--'
         const [h, m] = time.split(':')
         const hour = parseInt(h)
         const ampm = hour >= 12 ? 'PM' : 'AM'
@@ -497,7 +478,7 @@ export function ShiftManagement({ clinicId }: ShiftManagementProps) {
                                         <td className="px-5 py-3.5 text-slate-500 text-xs">{staff.department || '—'}</td>
                                         {clinicId === 'all' && (
                                             <td className="px-5 py-3.5 text-slate-500 text-xs font-medium">
-                                                {Array.isArray(staff.clinics) ? staff.clinics[0]?.name : staff.clinics?.name || 'N/A'}
+                                                {staff.clinics?.name || 'N/A'}
                                             </td>
                                         )}
                                         <td className="px-5 py-3.5">

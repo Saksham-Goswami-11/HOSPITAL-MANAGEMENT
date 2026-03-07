@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useHospital } from '@/context/HospitalContext';
-import { X, Sparkles, AlertTriangle, CreditCard, ArrowUpRight, FileText, ShieldAlert } from 'lucide-react';
+import { X, Sparkles, AlertTriangle, ArrowUpRight, FileText, ShieldAlert } from 'lucide-react';
 
 /**
  * TrialBanner — shows a countdown banner during the free trial period.
@@ -61,7 +61,7 @@ export function TrialBanner({ onExtendClick, onUpgradeClick }: { onExtendClick?:
  * PastDueBanner — shows a warning when payment has failed.
  * Cannot be dismissed (requires action).
  */
-export function PastDueBanner({ onUpgradeClick }: { onUpgradeClick?: () => void }) {
+export function PastDueBanner() {
     const { billing } = useHospital();
 
     if (!billing.isPastDue) return null;
@@ -73,13 +73,6 @@ export function PastDueBanner({ onUpgradeClick }: { onUpgradeClick?: () => void 
                 <span className="font-semibold">
                     Payment failed — your account may be restricted soon
                 </span>
-                <button
-                    onClick={onUpgradeClick}
-                    className="ml-2 px-3 py-1.5 bg-white text-red-600 rounded-lg text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1"
-                >
-                    <CreditCard className="w-3 h-3" />
-                    Update Payment Method
-                </button>
             </div>
         </div>
     );

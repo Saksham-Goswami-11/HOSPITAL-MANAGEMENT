@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Plus, Key, Banknote } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useHospital } from '@/context/HospitalContext'
+import { dataService as db } from '@/lib/dataService'
 
 export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string }) {
-    const { profile, hospital, clinics } = useHospital()
+    const { profile, hospital, clinics, billing } = useHospital()
     const { toast } = useToast()
 
     // Determine effective clinic ID (useful if super_admin is viewing)
@@ -85,35 +85,38 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
     const fetchStaff = async (cId?: string) => {
         try {
             setIsLoading(true)
-            let query = supabase.from('staff_details').select('*').order('created_at', { ascending: false })
-
+            const filters: any = {}
             if (cId) {
-                query = query.eq('clinic_id', cId)
+                filters.clinic_id = cId
             } else if (hospital?.id) {
-                query = query.eq('hospital_id', hospital.id)
+                filters.hospital_id = hospital.id
             } else {
                 setStaffList([])
                 return;
             }
 
-            const { data, error } = await query
+            const data = await db.list('staff_details', {
+                filters,
+                sort: { column: 'created_at', ascending: false }
+            });
 
-            if (error) throw error
             setStaffList(data || [])
 
             // Fetch today's attendance for those staff
             const today = new Date().toISOString().split('T')[0]
             if (data && data.length > 0) {
                 const staffIds = data.map((s: any) => s.id)
-                const { data: attData } = await supabase
-                    .from('staff_attendance')
-                    .select('*')
-                    .in('staff_id', staffIds)
-                    .eq('date', today)
+                const attData = await db.list('staff_attendance', {
+                    filters: {
+                        date: today
+                    }
+                });
 
+                // Filter manually for staffIds since DataService.list might not support 'in' yet or needs complex filters
+                // Actually, let's assume we can add 'in' filter to list or just filter the result
                 if (attData) {
                     const attMap: Record<string, any> = {}
-                    attData.forEach(a => {
+                    attData.filter((a: any) => staffIds.includes(a.staff_id)).forEach((a: any) => {
                         attMap[a.staff_id] = a
                     })
                     setDailyAttendance(attMap)
@@ -131,9 +134,19 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
         if (!hospital?.id) return;
         if (!effectiveClinicId && !isHospitalAdmin) return;
 
+        if (billing?.isAtLimit('staff_count')) {
+            toast({
+                title: 'Limit Reached',
+                description: `Your current plan allows a maximum of ${billing.getLimit('staff_count')} staff members. Please upgrade to add more.`,
+                variant: 'destructive'
+            });
+            setIsAddStaffOpen(false);
+            return;
+        }
+
         setIsSubmitting(true)
         try {
-            const { error } = await supabase.from('staff_details').insert({
+            await db.create('staff_details', {
                 hospital_id: hospital.id,
                 clinic_id: effectiveClinicId || null,
                 full_name: newStaff.full_name,
@@ -144,9 +157,6 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                 base_salary: newStaff.base_salary ? parseFloat(newStaff.base_salary) : 0,
                 joining_date: newStaff.joining_date || new Date().toISOString().split('T')[0]
             })
-
-
-            if (error) throw error
 
             toast({ title: 'Success', description: 'Staff member added successfully.' })
             setIsAddStaffOpen(false)
@@ -169,7 +179,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
         setIsSubmitting(true)
         try {
-            const { error } = await supabase.from('staff_details').update({
+            await db.update('staff_details', selectedStaff.id, {
                 full_name: editStaffData.full_name,
                 phone: editStaffData.phone || null,
                 email: editStaffData.email || null,
@@ -177,10 +187,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                 department: editStaffData.department,
                 base_salary: editStaffData.base_salary ? parseFloat(editStaffData.base_salary) : 0,
                 joining_date: editStaffData.joining_date || null
-            }).eq('id', selectedStaff.id)
-
-
-            if (error) throw error
+            })
 
             toast({ title: 'Success', description: 'Staff member updated globally.', className: "bg-green-50 text-green-900 border-green-200" })
             setIsEditStaffOpen(false)
@@ -198,17 +205,21 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
         setIsSubmitting(true)
         try {
-            // Check if profile with email already exists (simplified check)
-            const { data: existing } = await supabase.from('profiles').select('id').eq('email', loginEmail.toLowerCase()).single()
+            // Check if profile with email already exists
+            const existingProfiles = await db.list('profiles', {
+                filters: { email: loginEmail.toLowerCase() },
+                limit: 1
+            });
+            const existing = existingProfiles && existingProfiles.length > 0 ? existingProfiles[0] : null;
 
             if (existing) {
                 // If profile exists, link it
-                await supabase.from('profiles').update({
+                await db.update('profiles', existing.id, {
                     hospital_id: hospital?.id,
                     clinic_id: effectiveClinicId || null,
                     role: loginRole,
                     linked_staff_id: selectedStaff.id
-                }).eq('id', existing.id)
+                })
 
                 toast({ title: 'Auth Linked', description: 'Existing user account linked to this staff profile.' })
             } else {
@@ -216,7 +227,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
             }
 
             // Update staff record
-            await supabase.from('staff_details').update({ email: loginEmail.toLowerCase() }).eq('id', selectedStaff.id)
+            await db.update('staff_details', selectedStaff.id, { email: loginEmail.toLowerCase() })
 
             setIsGrantLoginOpen(false)
             fetchStaff(effectiveClinicId)
@@ -238,18 +249,15 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
             const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
             const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
 
-            const { data, error } = await supabase
-                .from('staff_attendance')
-                .select('status, total_hours')
-                .eq('staff_id', staff.id)
-                .gte('date', firstDay)
-                .lte('date', lastDay);
-
-            if (error) throw error;
+            const data = await db.list('staff_attendance', {
+                filters: {
+                    staff_id: staff.id
+                }
+            });
 
             let present = 0;
             let hours = 0;
-            data?.forEach(r => {
+            data?.filter((r: any) => r.date >= firstDay && r.date <= lastDay).forEach((r: any) => {
                 if (r.status === 'PRESENT') {
                     present++;
                     hours += (r.total_hours || 0);
@@ -267,16 +275,14 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
 
         setIsSubmitting(true)
         try {
-            const { error } = await supabase.from('payroll_history').insert({
+            await db.create('payroll_history', {
                 hospital_id: hospital.id,
                 clinic_id: effectiveClinicId || null,
-                user_id: selectedStaff.user_id, // Map payroll to user if available
+                user_id: selectedStaff.user_id || null, // Map payroll to user if available
                 amount_paid: parseFloat(payrollData.amount),
                 payment_date: new Date().toISOString().split('T')[0],
                 status: 'Paid'
             })
-
-            if (error) throw error
 
             toast({ title: 'Success', description: 'Payroll processed and recorded.', className: "bg-green-50 text-green-900 border-green-200" })
             setIsPayrollOpen(false)
@@ -291,13 +297,11 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
     const fetchAttendanceHistory = async (staffId: string) => {
         setIsHistoryLoading(true)
         try {
-            const { data, error } = await supabase
-                .from('staff_attendance')
-                .select('*')
-                .eq('staff_id', staffId)
-                .order('date', { ascending: false })
-                .limit(30)
-            if (error) throw error
+            const data = await db.list('staff_attendance', {
+                filters: { staff_id: staffId },
+                sort: { column: 'date', ascending: false },
+                limit: 30
+            });
             setAttendanceHistory(data || [])
         } catch (error: any) {
             toast({ title: 'Error', description: 'Failed to fetch attendance history.', variant: 'destructive' })
@@ -318,8 +322,6 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
         const matchesClinic = selectedClinicFilter === 'All Clinics' || s.clinic_id === selectedClinicFilter;
         return matchesSearch && matchesDept && matchesClinic;
     });
-
-
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 w-full max-w-[1600px] mx-auto">
@@ -599,7 +601,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full border border-slate-100 bg-blue-50 flex items-center justify-center text-blue-600 font-bold shrink-0">
-                                                    {staff.full_name.charAt(0)}
+                                                    {staff.full_name?.charAt(0)}
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-bold text-slate-900">{staff.full_name}</p>
@@ -612,7 +614,7 @@ export function StaffPortal({ clinicIdOverride }: { clinicIdOverride?: string })
                                             <p className="text-xs text-slate-500">{staff.role.replace('_', ' ')}</p>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px - 3 py - 1 rounded - full text - [11px] font - bold uppercase ${staff.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'} `}>
+                                            <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase ${staff.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                                                 {staff.status || 'ACTIVE'}
                                             </span>
                                         </td>

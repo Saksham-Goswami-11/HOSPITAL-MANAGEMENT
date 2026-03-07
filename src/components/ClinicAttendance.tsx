@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Loader2, Clock, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { toast } from '@/components/ui/use-toast'
 
@@ -33,35 +33,25 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
         setLoading(true)
         try {
             // 1. Fetch all shifts for this clinic
-            const { data: shiftsData } = await supabase
-                .from('clinic_shifts')
-                .select('*')
-                .eq('clinic_id', clinicId)
-                .eq('is_active', true)
+            const shiftsData = await db.list('clinic_shifts', {
+                filters: { clinic_id: clinicId, is_active: true }
+            })
 
             const sMap: Record<string, ShiftInfo> = {}
             shiftsData?.forEach((s: any) => { sMap[s.id] = s })
             setShiftsMap(sMap)
 
             // 2. Fetch all active staff for this clinic (with shift_id)
-            const { data: staffData, error: staffError } = await supabase
-                .from('staff_details')
-                .select('*')
-                .eq('clinic_id', clinicId)
-                .eq('status', 'Active')
-
-            if (staffError) throw staffError
+            const staffData = await db.list('staff_details', {
+                filters: { clinic_id: clinicId, status: 'Active' }
+            })
             setStaffList(staffData || [])
 
             // 3. Fetch today's attendance records
             const today = new Date().toISOString().split('T')[0]
-            const { data: attData, error: attError } = await supabase
-                .from('staff_attendance')
-                .select('*')
-                .eq('clinic_id', clinicId)
-                .eq('date', today)
-
-            if (attError) throw attError
+            const attData = await db.list('staff_attendance', {
+                filters: { clinic_id: clinicId, date: today }
+            })
 
             const attMap: Record<string, any> = {}
             attData?.forEach(record => {
@@ -97,10 +87,6 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
         // OR shifts that already ended today and the next occurrence is later
         const isOvernightShift = endH < startH || (endH === startH && endM < startM)
 
-        // If the shift already ended today and current time is well past the end,
-        // this shift's next occurrence is upcoming (later today or tomorrow).
-        // For example: Night Shift 1:00 AM - 9:00 AM, current time 5:48 PM
-        // The shift ended at 9:00 AM, so the next occurrence is tomorrow 1:00 AM
         if (!isOvernightShift && now > shiftEnd) {
             // Shift already completed for today — next run is tomorrow
             const tomorrowStart = new Date(shiftStart.getTime() + 24 * 60 * 60 * 1000)
@@ -133,13 +119,10 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
             }
         }
 
-        // Grace window: can punch in N minutes early
         const graceStart = new Date(shiftStart.getTime() - shift.grace_minutes * 60 * 1000)
-        // Late cutoff: after N minutes past start = auto-absent
         const lateCutoff = new Date(shiftStart.getTime() + shift.late_cutoff_minutes * 60 * 1000)
 
         if (now < graceStart) {
-            // Too early
             const minsUntil = Math.round((graceStart.getTime() - now.getTime()) / 60000)
             return {
                 canPunchIn: false,
@@ -148,10 +131,8 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
                 shift
             }
         } else if (now >= graceStart && now <= shiftStart) {
-            // Within grace window — on time
             return { canPunchIn: true, status: 'on-time', message: 'Within punch-in window', shift }
         } else if (now > shiftStart && now <= lateCutoff) {
-            // Late but within cutoff
             const minsLate = Math.round((now.getTime() - shiftStart.getTime()) / 60000)
             return {
                 canPunchIn: true,
@@ -160,7 +141,6 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
                 shift
             }
         } else {
-            // Past cutoff — auto-absent
             return {
                 canPunchIn: false,
                 status: 'blocked',
@@ -176,21 +156,15 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
         const today = now.split('T')[0];
 
         try {
-            const { data, error } = await supabase
-                .from('staff_attendance')
-                .insert({
-                    hospital_id: hospital.id,
-                    clinic_id: clinicId,
-                    staff_id: staffId,
-                    date: today,
-                    clock_in_time: now,
-                    status: 'PRESENT',
-                    is_late: isLate
-                })
-                .select()
-                .single()
-
-            if (error) throw error;
+            const data = await db.create('staff_attendance', {
+                hospital_id: hospital.id,
+                clinic_id: clinicId,
+                staff_id: staffId,
+                date: today,
+                clock_in_time: now,
+                status: 'PRESENT',
+                is_late: isLate
+            })
 
             toast({
                 title: isLate ? "Punched In (Late)" : "Punched In",
@@ -210,17 +184,10 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
         const diffHrs = diffMs / (1000 * 60 * 60);
 
         try {
-            const { data, error } = await supabase
-                .from('staff_attendance')
-                .update({
-                    clock_out_time: now.toISOString(),
-                    total_hours: parseFloat(diffHrs.toFixed(2))
-                })
-                .eq('id', attendanceRecord.id)
-                .select()
-                .single()
-
-            if (error) throw error;
+            const data = await db.update('staff_attendance', attendanceRecord.id, {
+                clock_out_time: now.toISOString(),
+                total_hours: parseFloat(diffHrs.toFixed(2))
+            })
 
             toast({ title: "Punched Out", description: `Recorded ${diffHrs.toFixed(2)} hours.` });
             setAttendanceToday(prev => ({ ...prev, [attendanceRecord.staff_id]: data }));
@@ -234,21 +201,15 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
         const today = new Date().toISOString().split('T')[0];
 
         try {
-            const { data, error } = await supabase
-                .from('staff_attendance')
-                .insert({
-                    hospital_id: hospital.id,
-                    clinic_id: clinicId,
-                    staff_id: staffId,
-                    date: today,
-                    status: 'ABSENT',
-                    total_hours: 0,
-                    is_late: false
-                })
-                .select()
-                .single()
-
-            if (error) throw error;
+            const data = await db.create('staff_attendance', {
+                hospital_id: hospital.id,
+                clinic_id: clinicId,
+                staff_id: staffId,
+                date: today,
+                status: 'ABSENT',
+                total_hours: 0,
+                is_late: false
+            })
 
             toast({ title: "Marked Absent", description: "Staff marked as absent." });
             setAttendanceToday(prev => ({ ...prev, [staffId]: data }));

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import { useHospital } from '@/context/HospitalContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/basic';
 import { Button, Input, Label, Textarea } from '@/components/ui/basic';
@@ -25,7 +25,7 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
         const formData = new FormData(e.currentTarget);
 
         try {
-            const { error } = await supabase.from('trial_extension_requests').insert({
+            await db.create('trial_extension_requests', {
                 hospital_id: hospital.id,
                 submitted_by: profile.id,
                 contact_name: formData.get('contact_name') as string,
@@ -35,13 +35,6 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
                 rating: rating,
                 status: 'pending'
             });
-
-            if (error) {
-                if (error.code === '23505') {
-                    throw new Error('You have already submitted a request for this hospital.');
-                }
-                throw error;
-            }
 
             setSuccess(true);
             toast({

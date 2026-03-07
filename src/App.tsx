@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { StaffPortal } from '@/components/StaffPortal'
 import { SuperAdminDashboard } from "@/components/SuperAdminDashboard";
 import { HospitalDashboard } from "@/components/HospitalDashboard";
@@ -26,10 +25,17 @@ import { BillingOverview, SubscriptionDashboard } from '@/components/billing';
 import AboutPage from '@/pages/AboutPage';
 import NewsPage from '@/pages/NewsPage';
 import ContactPage from '@/pages/ContactPage';
+import ClinicOperationsPage from '@/pages/ClinicOperationsPage';
+import HospitalCommandCenterPage from '@/pages/HospitalCommandCenterPage';
+import PrivacyPage from '@/pages/PrivacyPage';
+import CareersPage from '@/pages/CareersPage';
+import SupportPage from '@/pages/SupportPage';
 
 import { Loader2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/basic'
 import { Toaster } from '@/components/ui/toaster'
+import { authService } from '@/lib/authService'
+import { dataService } from '@/lib/dataService'
 
 // View types
 type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management'
@@ -106,15 +112,15 @@ function AppContent() {
 
     const handleLogout = async () => {
         try {
-            await supabase.auth.signOut({ scope: 'global' });
+            await authService.signOut();
         } catch (err) {
             console.warn('Sign out error:', err);
         } finally {
-            // Clear all session-related localStorage (Supabase stores tokens here)
+            // Clear all session-related localStorage
             localStorage.removeItem('lastActiveView');
-            // Remove Supabase auth tokens from localStorage
+            // Remove auth tokens from localStorage
             Object.keys(localStorage).forEach(key => {
-                if (key.startsWith('sb-') || key.includes('supabase')) {
+                if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
                     localStorage.removeItem(key);
                 }
             });
@@ -211,21 +217,16 @@ function AppContent() {
                                     variant="outline"
                                     className="border-slate-300 text-slate-600 hover:text-blue-600 hover:border-blue-300"
                                     onClick={async () => {
-                                        await import('@/components/ui/use-toast')
                                         // 1. Search Staff Details
-                                        const { data: staffRec } = await supabase.from('staff_details').select('clinic_id').eq('user_id', profile.id).single();
+                                        const results = await dataService.list('staff_details', { filters: [{ field: 'user_id', operator: '==', value: profile.id }] });
+                                        const staffRec = results[0];
 
                                         if (staffRec?.clinic_id) {
-                                            await supabase.from('profiles').update({ clinic_id: staffRec.clinic_id }).eq('id', profile.id);
+                                            await dataService.update('profiles', profile.id, { clinic_id: staffRec.clinic_id });
                                             window.location.reload();
                                             return;
                                         }
 
-                                        // 2. Fallback: Search Clinic by Name match (e.g. "Medanta" -> "Medanta Clinic")
-                                        // Since we can't guess easily, we just try to find ANY clinic where they are staff?
-                                        // Actually if step 1 failed, they likely aren't in staff_details either.
-
-                                        // 3. Last Resort: Search for a matching clinic name if their email implies it? No too risky.
                                         alert("Could not automatically find your clinic linkage. Please report this to support.");
                                     }}
                                 >
@@ -312,6 +313,11 @@ function AppRouter() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/news" element={<NewsPage />} />
                 <Route path="/contact" element={<ContactPage />} />
+                <Route path="/clinic-operations" element={<ClinicOperationsPage />} />
+                <Route path="/hospital-command-center" element={<HospitalCommandCenterPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/careers" element={<CareersPage />} />
+                <Route path="/support" element={<SupportPage />} />
                 <Route path="/login" element={session ? <Navigate to="/app" /> : <LoginPage />} />
                 <Route path="/register" element={session ? <Navigate to="/app" /> : <RegisterPage />} />
                 <Route path="/app/*" element={session ? <AppContent /> : <Navigate to="/login" />} />

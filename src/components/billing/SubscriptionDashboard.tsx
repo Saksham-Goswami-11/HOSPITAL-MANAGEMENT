@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useHospital } from '@/context/HospitalContext';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import { UsageOverview } from './UsageMeter';
 import { UpgradeModal } from './UpgradeModal';
 import { TestimonialForm } from './TestimonialForm';
 import {
-    Crown, CreditCard, Calendar, ArrowUpRight, Receipt,
+    Crown, Calendar, ArrowUpRight, Receipt,
     CheckCircle2, AlertTriangle, Clock, Sparkles, FileText, Loader2, X
 } from 'lucide-react';
 
 const PLAN_GRADIENT: Record<string, string> = {
+    testing: 'from-teal-600 to-cyan-600',
+    extended_testing: 'from-cyan-600 to-sky-600',
     starter: 'from-blue-600 to-indigo-600',
     professional: 'from-violet-600 to-purple-600',
     enterprise: 'from-amber-500 to-orange-600',
@@ -46,7 +48,7 @@ export function SubscriptionDashboard() {
     const [extensionRequest, setExtensionRequest] = useState<any>(null);
     const [loadingRequest, setLoadingRequest] = useState(true);
 
-    const { plan, subscription, isTrialing, isTrialExtended, daysLeftInTrial, isPastDue, isPaused, canExtendTrial } = billing;
+    const { plan, subscription, isTrialing, isTrialExtended, isExpired, daysLeftInTrial, isPastDue, isPaused, canExtendTrial, dataDeletesAt } = billing;
 
     const gradient = PLAN_GRADIENT[plan?.slug || 'starter'] || PLAN_GRADIENT.starter;
     const statusConfig = STATUS_CONFIG[subscription?.status || 'active'] || STATUS_CONFIG.active;
@@ -60,12 +62,11 @@ export function SubscriptionDashboard() {
     useEffect(() => {
         const fetchRequest = async () => {
             if (!hospital?.id) return;
-            const { data } = await supabase
-                .from('trial_extension_requests')
-                .select('*')
-                .eq('hospital_id', hospital.id)
-                .maybeSingle();
-            setExtensionRequest(data);
+            const data = await db.list('trial_extension_requests', {
+                filters: [{ column: 'hospital_id', operator: 'eq', value: hospital.id }],
+                limit: 1
+            });
+            setExtensionRequest(data?.[0] || null);
             setLoadingRequest(false);
         };
         fetchRequest();
@@ -88,7 +89,9 @@ export function SubscriptionDashboard() {
                                     {(isTrialing || isTrialExtended) ? 'Trialing Plan' : 'Current Plan'}
                                 </span>
                             </div>
-                            <h2 className="text-3xl font-extrabold">{plan?.name || (loadingRequest ? 'Loading...' : 'Free Trial')}</h2>
+                            <h2 className="text-3xl font-extrabold">
+                                {(isTrialing || isTrialExtended) ? 'Free Trial' : (plan?.name || (loadingRequest ? 'Loading...' : 'Current Plan'))}
+                            </h2>
                         </div>
                         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusConfig.color}`}>
                             <StatusIcon className="w-3.5 h-3.5" />
@@ -161,6 +164,22 @@ export function SubscriptionDashboard() {
                         </div>
                     )}
 
+                    {isExpired && (
+                        <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-400/30">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-red-300" />
+                                <span className="text-sm font-semibold text-red-100">
+                                    Trial Expired — Upgrade to continue using all features
+                                </span>
+                            </div>
+                            {dataDeletesAt && (
+                                <p className="text-xs text-red-200/80 mt-1">
+                                    Your data will be scheduled for deletion on {formatDate(dataDeletesAt)}. Upgrade now to keep all your data.
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex flex-wrap gap-3 mt-6">
                         <button
@@ -188,12 +207,6 @@ export function SubscriptionDashboard() {
                             </div>
                         )}
 
-                        {!isTrialing && !isTrialExtended && (
-                            <button className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white/80 text-sm font-medium rounded-xl transition-all flex items-center gap-1.5 border border-white/10">
-                                <CreditCard className="w-4 h-4" />
-                                Payment Method
-                            </button>
-                        )}
                     </div>
                 </div>
             </div>
@@ -248,12 +261,11 @@ export function SubscriptionDashboard() {
                                 // Refresh request state
                                 const fetchRequest = async () => {
                                     if (!hospital?.id) return;
-                                    const { data } = await supabase
-                                        .from('trial_extension_requests')
-                                        .select('*')
-                                        .eq('hospital_id', hospital.id)
-                                        .maybeSingle();
-                                    setExtensionRequest(data);
+                                    const data = await db.list('trial_extension_requests', {
+                                        filters: [{ column: 'hospital_id', operator: 'eq', value: hospital.id }],
+                                        limit: 1
+                                    });
+                                    setExtensionRequest(data?.[0] || null);
                                 };
                                 fetchRequest();
                             }} />

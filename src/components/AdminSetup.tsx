@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Building2, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { dataService as db } from '@/lib/dataService'
 import { useToast } from '@/components/ui/use-toast'
 
 export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onComplete: () => void }) {
@@ -28,11 +28,30 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
     useEffect(() => {
         const fixRole = async () => {
             if (userProfile && userProfile.role !== 'HOSPITAL_ADMIN' && userProfile.role !== 'SUPER_ADMIN') {
-                await supabase.from('profiles').update({ role: 'HOSPITAL_ADMIN' }).eq('id', userProfile.id);
+                await db.update('profiles', userProfile.id, { role: 'HOSPITAL_ADMIN' });
             }
         };
         fixRole();
     }, [userProfile]);
+
+    const [hospitalName, setHospitalName] = useState('')
+    const [hospitalSlug, setHospitalSlug] = useState('')
+
+    // Helper to generate a clean slug from name
+    const slugify = (text: string) => {
+        return text
+            .toLowerCase()
+            .replace(/[^\w\s-]/g, '') // Remove non-word chars (except space and hyphen)
+            .replace(/\s+/g, '-')     // Replace spaces with hyphens
+            .replace(/-+/g, '-')      // Replace multiple hyphens with single hyphen
+            .trim();                  // Trim from both ends
+    }
+
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newName = e.target.value;
+        setHospitalName(newName);
+        setHospitalSlug(slugify(newName));
+    }
 
     async function handleHospitalSetup(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
@@ -45,9 +64,9 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
         try {
             // Use the secure RPC to initialize the hospital onboarding
             // This bypasses RLS for the initial setup and ensures atomicity
-            const planSlug = selectedPlan === 'free' ? 'starter' : selectedPlan;
+            const planSlug = selectedPlan === 'free' ? 'testing' : selectedPlan;
 
-            const { data: hospitalId, error: setupError } = await supabase.rpc('initialize_hospital_onboarding', {
+            const hospitalId = await db.callRpc('initialize_hospital_onboarding', {
                 p_name: name,
                 p_slug: slug,
                 p_branding_color: color,
@@ -55,8 +74,6 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
                 p_plan_slug: planSlug,
                 p_billing_cycle: selectedBilling
             });
-
-            if (setupError) throw setupError;
 
             // 3. Update Local State & Prepare to Move Next
             userProfile.hospital_id = hospitalId
@@ -89,13 +106,11 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
 
         try {
             // Create Clinic
-            const { error } = await supabase.from('clinics').insert({
+            await db.create('clinics', {
                 name: clinicName,
                 location: location,
                 hospital_id: localHospitalId
             })
-
-            if (error) throw error
 
             toast({ title: 'Success', description: 'Headquarters registered successfully.' })
             // Trigger completion callback
@@ -127,11 +142,25 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
                         <form onSubmit={handleHospitalSetup} className="space-y-6">
                             <div className="space-y-2">
                                 <Label>Hospital Entity Name</Label>
-                                <Input name="name" placeholder="e.g. City General Hospital" required className="h-12 text-lg" />
+                                <Input
+                                    name="name"
+                                    placeholder="e.g. City General Hospital"
+                                    required
+                                    className="h-12 text-lg"
+                                    value={hospitalName}
+                                    onChange={handleNameChange}
+                                />
                             </div>
                             <div className="space-y-2">
                                 <Label>Unique Slug (ID)</Label>
-                                <Input name="slug" placeholder="e.g. city-general-ny" required className="h-12 text-lg font-mono" />
+                                <Input
+                                    name="slug"
+                                    placeholder="e.g. city-general-ny"
+                                    required
+                                    className="h-12 text-lg font-mono"
+                                    value={hospitalSlug}
+                                    onChange={(e) => setHospitalSlug(e.target.value)}
+                                />
                                 <p className="text-xs text-slate-400">Used for URL identification. Must be unique.</p>
                             </div>
                             <div className="space-y-2">
@@ -163,11 +192,11 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
                         className="text-slate-400 hover:text-blue-600"
                         onClick={async () => {
                             if (confirm("Are you a Clinic Admin/Staff erroneously sent here? This will switch your role to CLINIC_ADMIN.")) {
-                                const { error } = await supabase.from('profiles').update({ role: 'CLINIC_ADMIN' }).eq('id', userProfile.id)
-                                if (error) {
-                                    alert("Error fixing role: " + error.message)
-                                } else {
+                                try {
+                                    await db.update('profiles', userProfile.id, { role: 'CLINIC_ADMIN' })
                                     window.location.reload()
+                                } catch (error: any) {
+                                    alert("Error fixing role: " + error.message)
                                 }
                             }
                         }}

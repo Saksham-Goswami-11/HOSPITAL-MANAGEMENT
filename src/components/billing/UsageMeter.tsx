@@ -40,11 +40,13 @@ const METRIC_CONFIG: Record<keyof UsageMetrics, { label: string; icon: any; colo
 };
 
 export function UsageMeter({ metric, label, compact = false }: UsageMeterProps) {
-    const { billing } = useHospital();
+    const { billing, clinics } = useHospital();
     const config = METRIC_CONFIG[metric];
     const Icon = config.icon;
 
     const current = billing.usage[metric];
+    const pausedCount = metric === 'clinics_count' ? clinics.filter(c => c.status === 'paused').length : 0;
+
     const max = billing.getLimit(metric);
     const percent = billing.getUsagePercent(metric);
     const isUnlimited = max === -1;
@@ -83,10 +85,10 @@ export function UsageMeter({ metric, label, compact = false }: UsageMeterProps) 
 
     return (
         <div className={`p-4 rounded-xl border transition-all ${isAtLimit
-                ? 'border-red-200 bg-red-50/50'
-                : isNearLimit
-                    ? 'border-amber-200 bg-amber-50/50'
-                    : 'border-slate-200 bg-white'
+            ? 'border-red-200 bg-red-50/50'
+            : isNearLimit
+                ? 'border-amber-200 bg-amber-50/50'
+                : 'border-slate-200 bg-white'
             }`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
@@ -123,6 +125,13 @@ export function UsageMeter({ metric, label, compact = false }: UsageMeterProps) 
                 <p className="text-xs text-amber-600 font-medium mt-2">
                     Approaching limit ({percent}% used)
                 </p>
+            )}
+
+            {pausedCount > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Active: <span className="font-semibold text-slate-900">{current}</span></span>
+                    <span className="text-slate-500">Paused: <span className="font-semibold text-amber-600">{pausedCount}</span></span>
+                </div>
             )}
         </div>
     );

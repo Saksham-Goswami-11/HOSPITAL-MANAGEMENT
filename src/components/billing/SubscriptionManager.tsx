@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import { Card, CardContent } from '@/components/ui/basic';
 import { Button, Input } from '@/components/ui/basic';
 import {
@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 export function SubscriptionManager() {
     const { toast } = useToast();
     const [requests, setRequests] = useState<any[]>([]);
+    const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [processingId, setProcessingId] = useState<string | null>(null);
@@ -22,19 +23,27 @@ export function SubscriptionManager() {
     const fetchData = async () => {
         try {
             // Fetch pending extension requests
-            const { data: reqData } = await supabase
-                .from('trial_extension_requests')
-                .select('*, hospitals(name)')
-                .eq('status', 'pending')
-                .order('created_at', { ascending: false });
+            const reqData = await db.list('trial_extension_requests', {
+                select: '*, hospitals(name)',
+                filters: [{ column: 'status', operator: 'eq', value: 'pending' }],
+                sort: { column: 'created_at', ascending: false }
+            });
 
             setRequests(reqData || []);
 
+            // Fetch pending data deletion requests
+            const delData = await db.list('data_deletion_requests', {
+                select: '*, hospitals(name)',
+                filters: [{ column: 'status', operator: 'eq', value: 'pending' }],
+                sort: { column: 'created_at', ascending: false }
+            });
+
+            setDeletionRequests(delData || []);
+
             // Fetch all hospitals with their subscription status
-            const { data: hospData } = await supabase
-                .from('hospital_stats_view')
-                .select('*')
-                .order('name');
+            const hospData = await db.list('hospital_stats_view', {
+                sort: { column: 'name' }
+            });
 
             setHospitals(hospData || []);
         } catch (err) {
@@ -45,7 +54,7 @@ export function SubscriptionManager() {
     const handleExtensionAction = async (requestId: string, hospitalId: string, approve: boolean) => {
         setProcessingId(requestId);
         try {
-            const { data, error } = await supabase.functions.invoke('manage-subscription', {
+            const { data, error } = await db.invokeFunction('manage-subscription', {
                 body: {
                     action: 'approve_trial_extension',
                     hospitalId,
@@ -86,7 +95,7 @@ export function SubscriptionManager() {
 
         setProcessingId(hospitalId);
         try {
-            const { data, error } = await supabase.functions.invoke('manage-subscription', {
+            const { data, error } = await db.invokeFunction('manage-subscription', {
                 body: {
                     action: isDelete ? 'delete_hospital' : (action === 'extend_trial' ? 'approve_trial_extension' : action),
                     hospitalId,
@@ -206,31 +215,82 @@ export function SubscriptionManager() {
                 )}
             </section>
 
-            {/* Data Deletion Approvals */}
-            {hospitals.filter(h => h.subscription_status === 'paused' && h.paused_at && (new Date().getTime() - new Date(h.paused_at).getTime()) > 30 * 24 * 60 * 60 * 1000).length > 0 && (
+            {/* Data Deletion Requests */}
+            {deletionRequests.length > 0 && (
                 <section className="bg-red-50/30 border border-red-100 rounded-xl p-6">
                     <div className="flex items-center gap-2 mb-4 text-red-900">
                         <Trash2 className="w-5 h-5" />
-                        <h2 className="text-xl font-bold">Pending Data Deletion Approvals</h2>
+                        <h2 className="text-xl font-bold">Pending Data Deletion Requests</h2>
+                        <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">
+                            {deletionRequests.length} Pending
+                        </span>
                     </div>
                     <div className="grid gap-3">
-                        {hospitals.filter(h => h.subscription_status === 'paused' && h.paused_at && (new Date().getTime() - new Date(h.paused_at).getTime()) > 30 * 24 * 60 * 60 * 1000).map(h => (
-                            <div key={h.id} className="bg-white border border-red-100 p-4 rounded-lg flex items-center justify-between shadow-sm">
+                        {deletionRequests.map(del => (
+                            <div key={del.id} className="bg-white border border-red-100 p-4 rounded-lg flex items-center justify-between shadow-sm">
                                 <div>
-                                    <h3 className="font-bold text-slate-900">{h.name}</h3>
+                                    <h3 className="font-bold text-slate-900">{del.hospitals?.name || del.hospital_id}</h3>
                                     <p className="text-xs text-red-600">
-                                        Paused for {Math.floor((new Date().getTime() - new Date(h.paused_at).getTime()) / (1000 * 60 * 60 * 24))} days.
-                                        Eligible for permanent deletion.
+                                        {del.reason}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Scheduled: {new Date(del.scheduled_at).toLocaleDateString()}
                                     </p>
                                 </div>
-                                <Button
-                                    onClick={() => handleSubscriptionAction(h.id, 'delete')}
-                                    disabled={processingId === h.id}
-                                    variant="outline"
-                                    className="border-red-200 text-red-600 hover:bg-red-600 hover:text-white transition-all text-xs h-9 px-4 font-bold"
-                                >
-                                    {processingId === h.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve Deletion'}
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={async () => {
+                                            setProcessingId(del.id);
+                                            try {
+                                                const { data, error } = await db.invokeFunction('manage-subscription', {
+                                                    body: {
+                                                        action: 'approve_data_deletion',
+                                                        hospitalId: del.hospital_id,
+                                                        requestId: del.id
+                                                    }
+                                                });
+                                                if (error) throw error;
+                                                toast({ title: 'Deletion Approved', description: data?.message || 'Hospital data permanently deleted.', className: 'bg-red-50 text-red-900 border-red-200' });
+                                                fetchData();
+                                            } catch (err: any) {
+                                                toast({ title: 'Action Failed', description: err.message, variant: 'destructive' });
+                                            } finally {
+                                                setProcessingId(null);
+                                            }
+                                        }}
+                                        disabled={processingId === del.id}
+                                        variant="outline"
+                                        className="border-red-200 text-red-600 hover:bg-red-600 hover:text-white transition-all text-xs h-9 px-4 font-bold"
+                                    >
+                                        {processingId === del.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Approve Deletion'}
+                                    </Button>
+                                    <Button
+                                        onClick={async () => {
+                                            setProcessingId(del.id);
+                                            try {
+                                                const { error } = await db.invokeFunction('manage-subscription', {
+                                                    body: {
+                                                        action: 'reject_data_deletion',
+                                                        hospitalId: del.hospital_id,
+                                                        requestId: del.id
+                                                    }
+                                                });
+                                                if (error) throw error;
+                                                toast({ title: 'Deletion Rejected', description: 'Data preservation extended.', className: 'bg-green-50 text-green-900 border-green-200' });
+                                                fetchData();
+                                            } catch (err: any) {
+                                                toast({ title: 'Action Failed', description: err.message, variant: 'destructive' });
+                                            } finally {
+                                                setProcessingId(null);
+                                            }
+                                        }}
+                                        disabled={processingId === del.id}
+                                        variant="outline"
+                                        className="border-slate-200 text-slate-600 hover:bg-slate-100 text-xs h-9 px-4"
+                                    >
+                                        Reject
+                                    </Button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -273,6 +333,7 @@ export function SubscriptionManager() {
                                     <td className="px-5 py-4">
                                         <Badge className={`
                                             ${h.subscription_status === 'trialing' ? 'bg-blue-50 text-blue-600' : ''}
+                                            ${h.subscription_status === 'trial_extended' ? 'bg-violet-50 text-violet-600' : ''}
                                             ${h.subscription_status === 'active' ? 'bg-emerald-50 text-emerald-600' : ''}
                                             ${h.subscription_status === 'paused' ? 'bg-amber-50 text-amber-600' : ''}
                                             ${h.subscription_status === 'expired' ? 'bg-red-50 text-red-600' : ''}

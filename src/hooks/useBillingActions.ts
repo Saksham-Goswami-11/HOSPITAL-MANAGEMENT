@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { authService as auth } from '@/lib/authService';
+import { dataService as db } from '@/lib/dataService';
 import { useToast } from '@/components/ui/use-toast';
 
 /**
@@ -23,22 +24,27 @@ export function useBillingActions() {
     ) => {
         setLoading(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const session = await auth.getSession();
             if (!session) {
                 toast({ title: 'Session expired', description: 'Please log in again.', variant: 'destructive' });
                 return;
             }
 
             // Call create-checkout Edge Function
-            const res = await supabase.functions.invoke('create-checkout', {
+            const res = await db.invokeFunction('create-checkout', {
                 body: { plan_slug: planSlug, billing_cycle: billingCycle },
             });
 
             if (res.error) {
+                // If it's a Supabase FunctionError, res.error has the details
                 throw new Error(res.error.message || 'Checkout failed');
             }
 
             const checkout = res.data;
+
+            if (!checkout) {
+                throw new Error('Received empty response from payment server');
+            }
 
             // If gateway returns 503 (not configured), show friendly message
             if (checkout.error && checkout.error.includes('not configured')) {
@@ -128,7 +134,7 @@ export function useBillingActions() {
     const cancelSubscription = async (onSuccess?: () => void) => {
         setLoading(true);
         try {
-            const res = await supabase.functions.invoke('manage-subscription', {
+            const res = await db.invokeFunction('manage-subscription', {
                 body: { action: 'cancel' },
             });
 
@@ -151,7 +157,7 @@ export function useBillingActions() {
     const switchPlan = async (planSlug: string, billingCycle?: string, onSuccess?: () => void) => {
         setLoading(true);
         try {
-            const res = await supabase.functions.invoke('manage-subscription', {
+            const res = await db.invokeFunction('manage-subscription', {
                 body: { action: 'switch_plan', plan_slug: planSlug, billing_cycle: billingCycle },
             });
 

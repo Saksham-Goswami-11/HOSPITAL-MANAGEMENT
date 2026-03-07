@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/basic';
+import { authService as auth } from '@/lib/authService';
+import { Button, Input, PasswordInput, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/basic';
 import { UserPlus, Mail, Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -24,28 +24,13 @@ export function RegisterPage() {
         setLoading(true);
 
         try {
-            // 1. Sign up user
-            const { error: authError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        full_name: fullName,
-                        // We store temporary onboarding state in user metadata
-                        onboarding_plan: plan,
-                        onboarding_billing: billing,
-                        role: 'HOSPITAL_ADMIN'
-                    }
-                }
+            // 1. Sign up user via abstract AuthService
+            await auth.signUp(email, password, {
+                full_name: fullName,
+                onboarding_plan: plan,
+                onboarding_billing: billing,
+                role: 'HOSPITAL_ADMIN'
             });
-
-            if (authError) throw authError;
-
-            // 2. Note: A trigger in our DB usually creates the 'profiles' row.
-            // But we need to ensure the role is set to HOSPITAL_ADMIN for self-service signups.
-            // The existing trigger might default to 'STAFF' or null.
-            // We'll update the profile role after signup if session is immediately available,
-            // or rely on the AdminSetup component to fix it if they log in later.
 
             setSuccess(true);
             toast({
@@ -150,9 +135,8 @@ export function RegisterPage() {
                             <Label htmlFor="password">Create Password</Label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-                                <Input
+                                <PasswordInput
                                     id="password"
-                                    type="password"
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}

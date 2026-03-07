@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useHospital } from '@/context/HospitalContext'
 import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
-import { TrialBanner, PastDueBanner, ReadOnlyBanner } from '@/components/billing'
+import { TrialBanner, PastDueBanner, ReadOnlyBanner, DowngradeResolutionModal } from '@/components/billing'
+import { requestNotificationPermission } from '@/lib/notifications'
 
 interface AppLayoutProps {
     children: React.ReactNode
@@ -12,10 +13,19 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, onLogout, view, setView, lockNavigation = false }: AppLayoutProps) {
-    const { profile: userProfile, hospital, clinics } = useHospital()
+    const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, inventory } = useHospital()
     const role = userProfile?.role
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+
+    // Calculate Low Stock Count for Badge
+    const lowStockCount = useMemo(() => {
+        let items = inventory;
+        if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF') {
+            items = inventory.filter(i => i.clinic_id === userProfile?.clinic_id);
+        }
+        return items.filter(i => i.quantity < i.threshold).length;
+    }, [inventory, role, userProfile?.clinic_id]);
 
     // Helper for Navigation Items
     const NavItem = ({ icon, label, active, onClick, disabled }: any) => (
@@ -55,8 +65,36 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
         return 'Hospital OS';
     }
 
+    const isClinicPaused = myClinic?.status === 'paused' && role !== 'SUPER_ADMIN' && role !== 'OWNER';
+
+    if (isClinicPaused) {
+        return (
+            <div className="text-slate-900 h-screen w-screen flex overflow-hidden bg-slate-50 font-sans">
+                <div className="w-full h-full flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 text-center ring-1 ring-slate-200">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span className="material-symbols-outlined text-3xl text-red-600">block</span>
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Clinic Paused</h2>
+                        <p className="text-slate-600 mb-8">
+                            Your clinic has been paused by the hospital administrator.
+                            You cannot access the system until it is unpaused.
+                        </p>
+                        <button
+                            onClick={onLogout}
+                            className="w-full bg-slate-100 text-slate-700 font-medium py-3 rounded-xl hover:bg-slate-200 transition-colors"
+                        >
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="text-slate-900 h-screen w-screen flex overflow-hidden bg-white font-sans">
+
             {/* MOBILE OVERLAY */}
             {isMobileMenuOpen && (
                 <div
@@ -281,34 +319,61 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="relative">
+                        {/* Notifications */}
+                        <div className="flex items-center gap-1 sm:gap-2">
+                            {Notification.permission !== 'granted' && (
+                                <button
+                                    onClick={async () => {
+                                        const granted = await requestNotificationPermission();
+                                        if (granted) {
+                                            // Refresh component state or show success
+                                            window.location.reload();
+                                        }
+                                    }}
+                                    className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
+                                    title="Enable Desktop Notifications"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">notifications_active</span>
+                                    Enable Desktop Alerts
+                                </button>
+                            )}
                             <button
-                                className="w-11 h-11 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all relative group"
-                                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                                onClick={() => setIsNotificationsOpen(true)}
+                                className="relative p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all active:scale-95 group"
                             >
-                                <span className="material-symbols-outlined text-[24px]">notifications</span>
-                                <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full group-hover:scale-110 transition-transform"></span>
+                                <span className="material-symbols-outlined text-2xl group-hover:rotate-[15deg] transition-transform">notifications</span>
+                                {lowStockCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white group-hover:scale-110 transition-transform">
+                                        {lowStockCount > 99 ? '99+' : lowStockCount}
+                                    </span>
+                                )}
                             </button>
                         </div>
                         <NotificationsPanel
                             open={isNotificationsOpen}
                             onClose={() => setIsNotificationsOpen(false)}
+                            onNavigate={setView}
                         />
                         {/* We leave the top right action area primarily to the child components, 
                         but we can provide a container for them if needed later. */}
                     </div>
                 </header>
 
-                {/* BILLING BANNERS */}
-                <TrialBanner
-                    onUpgradeClick={() => setView('billing')}
-                    onExtendClick={() => setView('billing')}
-                />
-                <PastDueBanner onUpgradeClick={() => setView('billing')} />
-                <ReadOnlyBanner onUpgradeClick={() => setView('billing')} />
+                {/* BILLING BANNERS - Only show for regular hospital/clinic admins */}
+                {role !== 'SUPER_ADMIN' && role !== 'OWNER' && (
+                    <>
+                        <TrialBanner
+                            onUpgradeClick={() => setView('billing')}
+                            onExtendClick={() => setView('billing')}
+                        />
+                        <PastDueBanner />
+                        <ReadOnlyBanner />
+                    </>
+                )}
 
                 {/* SCROLLABLE INNER CONTENT */}
                 <div className="flex-1 p-4 lg:p-12 lg:pt-6 max-w-[1600px] w-full mx-auto">
+                    <DowngradeResolutionModal isOpen={requiresDowngradeResolution} />
                     {children}
                 </div>
             </main>

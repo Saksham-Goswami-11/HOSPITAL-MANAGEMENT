@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import {
     Crown, TrendingUp, Users, CreditCard,
     AlertTriangle, CheckCircle2
@@ -33,6 +33,8 @@ function formatRupees(paise: number): string {
 
 const PLAN_COLORS: Record<string, string> = {
     free: 'bg-slate-400',
+    testing: 'bg-teal-500',
+    extended_testing: 'bg-cyan-500',
     starter: 'bg-blue-500',
     professional: 'bg-violet-500',
     enterprise: 'bg-amber-500',
@@ -40,6 +42,8 @@ const PLAN_COLORS: Record<string, string> = {
 
 const PLAN_BG_COLORS: Record<string, string> = {
     free: 'bg-slate-50 text-slate-700 border-slate-200',
+    testing: 'bg-teal-50 text-teal-700 border-teal-200',
+    extended_testing: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     starter: 'bg-blue-50 text-blue-700 border-blue-200',
     professional: 'bg-violet-50 text-violet-700 border-violet-200',
     enterprise: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -58,9 +62,7 @@ export function BillingOverview() {
             setLoading(true);
 
             // Fetch all subscriptions with their plans
-            const { data: subscriptions } = await supabase
-                .from('subscriptions')
-                .select('*, plans(*)');
+            const subscriptions = await db.list('subscriptions', { select: '*, plans(*)' });
 
             if (!subscriptions) return;
 
@@ -115,7 +117,7 @@ export function BillingOverview() {
                 trial_hospitals: trialCount,
                 past_due_hospitals: pastDueCount,
                 plan_distribution: Array.from(planMap.values()).sort((a, b) => {
-                    const order = ['free', 'starter', 'professional', 'enterprise'];
+                    const order = ['free', 'testing', 'extended_testing', 'starter', 'professional', 'enterprise'];
                     return order.indexOf(a.slug) - order.indexOf(b.slug);
                 }),
             });

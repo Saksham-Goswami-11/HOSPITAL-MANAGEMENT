@@ -1,12 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dataService as db } from '@/lib/dataService';
 import { useHospital } from '@/context/HospitalContext';
-import { Loader2, TrendingUp, Download, Building2, Stethoscope, Pill } from 'lucide-react';
+import { Loader2, TrendingUp, Download, Building2, Stethoscope, Pill, Search, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/basic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 import { Button } from '@/components/ui/basic';
 import { jsPDF } from "jspdf";
+import * as XLSX from 'xlsx';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 
 type DateRange = 'today' | 'week' | 'month' | 'all';
 
@@ -16,6 +23,7 @@ function TransactionTable({ sales, clinics }: { sales: any[], clinics: any[] }) 
             <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 border-b">
                     <tr>
+                        <th className="px-4 py-3 font-semibold text-slate-700">Receipt ID</th>
                         <th className="px-4 py-3 font-semibold text-slate-700">Patient</th>
                         <th className="px-4 py-3 font-semibold text-slate-700">Clinic</th>
                         <th className="px-4 py-3 font-semibold text-slate-700">Type</th>
@@ -27,11 +35,14 @@ function TransactionTable({ sales, clinics }: { sales: any[], clinics: any[] }) 
                 <tbody className="divide-y">
                     {sales.length === 0 ? (
                         <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-slate-500">No transactions found for this category.</td>
+                            <td colSpan={7} className="px-4 py-8 text-center text-slate-500">No transactions found for this category.</td>
                         </tr>
                     ) : (
                         sales.map((sale) => (
                             <tr key={sale.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                                    {sale.id?.split('-')[0].toUpperCase()}
+                                </td>
                                 <td className="px-4 py-3">
                                     <p className="font-medium text-slate-900">{sale.patient_name}</p>
                                     <p className="text-xs text-slate-500">Dr. {sale.doctor_name}</p>
@@ -41,10 +52,10 @@ function TransactionTable({ sales, clinics }: { sales: any[], clinics: any[] }) 
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${sale.sale_type === 'CONSULTATION'
-                                            ? 'bg-blue-100 text-blue-700'
-                                            : sale.sale_type === 'SERVICE'
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-purple-100 text-purple-700'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : sale.sale_type === 'SERVICE'
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : 'bg-purple-100 text-purple-700'
                                         }`}>
                                         {sale.sale_type}
                                     </span>
@@ -73,6 +84,7 @@ export function EarningsDashboard() {
     const [sales, setSales] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [dateRange, setDateRange] = useState<DateRange>('today');
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchEarnings();
@@ -83,25 +95,21 @@ export function EarningsDashboard() {
         setLoading(true);
 
         try {
-            let query = supabase
-                .from('sales')
-                .select('*')
-                .eq('hospital_id', hospital.id);
+            const filters: any[] = [{ column: 'hospital_id', operator: 'eq', value: hospital.id }];
 
             const now = new Date();
             if (dateRange === 'today') {
                 const today = now.toISOString().split('T')[0];
-                query = query.gte('timestamp', `${today}T00:00:00`);
+                filters.push({ column: 'timestamp', operator: 'gte', value: `${today}T00:00:00` });
             } else if (dateRange === 'week') {
                 const weekAgo = new Date(now.setDate(now.getDate() - 7)).toISOString();
-                query = query.gte('timestamp', weekAgo);
+                filters.push({ column: 'timestamp', operator: 'gte', value: weekAgo });
             } else if (dateRange === 'month') {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-                query = query.gte('timestamp', startOfMonth);
+                filters.push({ column: 'timestamp', operator: 'gte', value: startOfMonth });
             }
 
-            const { data, error } = await query;
-            if (error) throw error;
+            const data = await db.list('sales', { filters });
             setSales(data || []);
         } catch (error) {
             console.error('Error fetching earnings:', error);
@@ -153,6 +161,61 @@ export function EarningsDashboard() {
         };
     }, [sales, clinics]);
 
+    const displayedSales = useMemo(() => {
+        if (!searchQuery.trim()) return sales;
+        const q = searchQuery.toLowerCase();
+        return sales.filter(s =>
+            s.id?.toLowerCase().includes(q) ||
+            s.patient_name?.toLowerCase().includes(q) ||
+            s.id?.split('-')[0].toLowerCase().includes(q)
+        );
+    }, [sales, searchQuery]);
+
+    const handleExportExcel = () => {
+        const wb = XLSX.utils.book_new();
+
+        // 1. Summary Sheet
+        const summaryData = [
+            ["Earnings Report", hospital?.name || 'Hospital'],
+            ["Date Range", dateRange.toUpperCase()],
+            [""],
+            ["Metric", "Value (Rs.)"],
+            ["Total Revenue", metrics.total],
+            ["Consultancy", metrics.consultancy],
+            ["Pharmacy", metrics.pharmacy],
+            [""],
+            ["Clinic Breakdown", "Transactions", "Total Revenue (Rs.)"]
+        ];
+
+        clinics.forEach(c => {
+            const stats = metrics.clinicStats[c.id];
+            if (stats && stats.transactions > 0) {
+                summaryData.push([c.name, stats.transactions.toString(), stats.total.toString()]);
+            }
+        });
+
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+        // 2. Ledger Sheet
+        const ledgerData = displayedSales.map(sale => ({
+            "Receipt ID": sale.id?.split('-')[0].toUpperCase(),
+            "Full Receipt ID": sale.id,
+            "Date": new Date(sale.timestamp).toLocaleString(),
+            "Clinic": clinics.find(c => c.id === sale.clinic_id)?.name || 'Unknown',
+            "Patient": sale.patient_name || 'N/A',
+            "Doctor": sale.doctor_name || 'N/A',
+            "Type": sale.sale_type || 'Unknown',
+            "Payment Mode": sale.payment_mode || 'Unknown',
+            "Amount (Rs.)": sale.amount || 0
+        }));
+
+        const wsLedger = XLSX.utils.json_to_sheet(ledgerData);
+        XLSX.utils.book_append_sheet(wb, wsLedger, "Transactions Ledger");
+
+        XLSX.writeFile(wb, `earnings-report-${dateRange}.xlsx`);
+    };
+
     const handleExportPDF = () => {
         const doc = new jsPDF();
 
@@ -193,8 +256,9 @@ export function EarningsDashboard() {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         doc.text('Date', 10, y);
-        doc.text('Clinic', 45, y);
-        doc.text('Patient', 100, y);
+        doc.text('Receipt', 45, y);
+        doc.text('Clinic', 75, y);
+        doc.text('Patient', 115, y);
         doc.text('Type', 150, y);
         doc.text('Amount', 180, y);
         y += 2;
@@ -203,7 +267,7 @@ export function EarningsDashboard() {
 
         doc.setFont('helvetica', 'normal');
 
-        sales.forEach(sale => {
+        displayedSales.forEach(sale => {
             // Check for page overflow
             if (y > 280) {
                 doc.addPage();
@@ -211,14 +275,16 @@ export function EarningsDashboard() {
             }
 
             const dateStr = new Date(sale.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+            const receipt = sale.id?.split('-')[0].toUpperCase() || 'N/A';
             const clinicName = clinics.find(c => c.id === sale.clinic_id)?.name || 'Unknown';
-            const patient = (sale.patient_name || 'N/A').substring(0, 22);
+            const patient = (sale.patient_name || 'N/A').substring(0, 18);
             const type = sale.sale_type || 'Unknown';
             const amountStr = `Rs ${sale.amount?.toLocaleString() || 0}`;
 
             doc.text(dateStr, 10, y);
-            doc.text(clinicName.substring(0, 22), 45, y); // Truncated clinic name
-            doc.text(patient, 100, y);
+            doc.text(receipt, 45, y);
+            doc.text(clinicName.substring(0, 18), 75, y);
+            doc.text(patient, 115, y);
             doc.text(type, 150, y);
             doc.text(amountStr, 180, y);
 
@@ -237,13 +303,24 @@ export function EarningsDashboard() {
                     <p className="text-slate-500 mt-1">Global Revenue Tracking across all Clinics</p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="bg-white border border-slate-200 rounded-lg p-1 shadow-sm flex items-center">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                    <div className="relative w-full md:w-64">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            placeholder="Search by Receipt ID..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono placeholder:font-sans"
+                        />
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-lg p-1 shadow-sm flex items-center w-full md:w-auto">
                         {(['today', 'week', 'month', 'all'] as DateRange[]).map(range => (
                             <button
                                 key={range}
                                 onClick={() => setDateRange(range)}
-                                className={`px-4 py-1.5 text-sm font-medium rounded-md capitalize transition-colors ${dateRange === range
+                                className={`flex-1 md:flex-none px-4 py-1.5 text-sm font-medium rounded-md capitalize transition-colors ${dateRange === range
                                     ? 'bg-blue-600 text-white shadow-sm'
                                     : 'text-slate-600 hover:bg-slate-50'
                                     }`}
@@ -253,15 +330,55 @@ export function EarningsDashboard() {
                         ))}
                     </div>
 
-                    <Button onClick={handleExportPDF} className="bg-slate-900 text-white hover:bg-slate-800 shadow-md">
-                        <Download className="w-4 h-4 mr-2" /> PDF Report
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button className="bg-gradient-to-r from-slate-900 to-slate-800 text-white hover:shadow-lg transition-all border-none flex-1 md:flex-auto">
+                                <Download className="w-4 h-4 mr-2" /> Download Report (Better UX)
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                                <Download className="w-4 h-4 mr-2" /> PDF Document
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer text-emerald-600">
+                                <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel Spreadsheet
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
             {loading ? (
                 <div className="flex justify-center items-center py-20">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+            ) : searchQuery.trim() ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden">
+                        <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
+                            <CardTitle className="text-lg font-bold text-slate-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Search className="w-5 h-5 text-slate-500" />
+                                    Search Results for "{searchQuery}"
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {displayedSales.length === 0 && (
+                                        <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 animate-pulse">
+                                            Search is limited to selected date range.
+                                        </span>
+                                    )}
+                                    <span className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                                        {displayedSales.length} found
+                                    </span>
+                                </div>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="p-4 bg-white/50 pattern-grid-lg text-slate-400">
+                                <TransactionTable sales={displayedSales} clinics={clinics} />
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             ) : (
                 <>
@@ -292,7 +409,7 @@ export function EarningsDashboard() {
                                     <p className="text-sm text-slate-500">Full transaction history for the selected {dateRange} period.</p>
                                 </DialogHeader>
                                 <div className="flex-1 overflow-y-auto p-6 pt-0">
-                                    <TransactionTable sales={sales} clinics={clinics} />
+                                    <TransactionTable sales={displayedSales} clinics={clinics} />
                                 </div>
                             </DialogContent>
                         </Dialog>
@@ -323,7 +440,7 @@ export function EarningsDashboard() {
                                 </DialogHeader>
                                 <div className="flex-1 overflow-y-auto p-6 pt-0">
                                     <TransactionTable
-                                        sales={sales.filter(s => s.sale_type === 'CONSULTATION' || s.sale_type === 'SERVICE')}
+                                        sales={displayedSales.filter(s => s.sale_type === 'CONSULTATION' || s.sale_type === 'SERVICE')}
                                         clinics={clinics}
                                     />
                                 </div>
@@ -356,7 +473,7 @@ export function EarningsDashboard() {
                                 </DialogHeader>
                                 <div className="flex-1 overflow-y-auto p-6 pt-0">
                                     <TransactionTable
-                                        sales={sales.filter(s => s.sale_type !== 'CONSULTATION' && s.sale_type !== 'SERVICE')}
+                                        sales={displayedSales.filter(s => s.sale_type !== 'CONSULTATION' && s.sale_type !== 'SERVICE')}
                                         clinics={clinics}
                                     />
                                 </div>
