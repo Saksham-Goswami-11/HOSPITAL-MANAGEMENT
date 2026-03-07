@@ -373,7 +373,9 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
 
                 {/* SCROLLABLE INNER CONTENT */}
                 <div className="flex-1 p-4 lg:p-12 lg:pt-6 max-w-[1600px] w-full mx-auto">
-                    <DowngradeResolutionModal isOpen={requiresDowngradeResolution} />
+                    {!['SUPER_ADMIN', 'OWNER'].includes(role || '') && (
+                        <DowngradeResolutionModal isOpen={requiresDowngradeResolution} />
+                    )}
                     {children}
                 </div>
             </main>

@@ -19,7 +19,7 @@ export function DowngradeResolutionModal({ isOpen }: DowngradeResolutionModalPro
         setSelectedToPause([])
     }, [isOpen])
 
-    if (!isOpen) return null
+    if (!isOpen || ['SUPER_ADMIN', 'OWNER'].includes(profile?.role || '')) return null
 
     const limit = billing.getLimit('clinics_count')
     const activeCount = activeClinics.length
