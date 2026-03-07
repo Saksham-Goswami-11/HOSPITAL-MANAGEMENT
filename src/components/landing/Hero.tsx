@@ -1,5 +1,6 @@
 
 import React from 'react';
+import ReactGA from "react-ga4";
 
 const Hero: React.FC = () => {
   return (
@@ -23,7 +24,13 @@ const Hero: React.FC = () => {
               Seamlessly Integrating Clinic and Hospital Management for Better Patient Outcomes. Empowering providers with data-driven workflows and real-time operational visibility.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-lg font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-1 w-full sm:w-auto text-center">
+              <button
+                onClick={() => ReactGA.event({
+                  category: "Lead Generation",
+                  action: "Clicked Request Demo",
+                })}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-lg font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-1 w-full sm:w-auto text-center"
+              >
                 Request a Demo
               </button>
               <button

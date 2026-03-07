@@ -6,6 +6,7 @@ import {
     Check, X, ArrowRight, Sparkles, Crown,
     Zap, Star, Clock, Shield
 } from 'lucide-react';
+import ReactGA from "react-ga4";
 
 interface PlanData {
     id: string;
@@ -308,6 +309,15 @@ const PricingSection: React.FC = () => {
                                     {/* CTA */}
                                     <Link
                                         to={isEnterprise ? '/login' : `/register?plan=${plan.slug}&billing=${billing}`}
+                                        onClick={() => {
+                                            if (!isEnterprise) {
+                                                ReactGA.event({
+                                                    category: "Conversion",
+                                                    action: "Clicked Start Free Trial",
+                                                    label: "Pricing Page"
+                                                });
+                                            }
+                                        }}
                                         className={`w-full py-3.5 rounded-xl font-bold text-center transition-all duration-300 flex items-center justify-center gap-2 group/btn ${isPro
                                             ? `bg-gradient-to-r ${style.from} ${style.to} text-white shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/40 hover:-translate-y-0.5`
                                             : isEnterprise

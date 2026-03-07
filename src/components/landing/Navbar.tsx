@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import ReactGA from "react-ga4";
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -32,6 +33,13 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
 
   const handleNavClick = (link: typeof navLinks[0]) => {
+    if (link.name === 'Pricing') {
+      ReactGA.event({
+        category: "Navigation",
+        action: "Clicked Pricing",
+      });
+    }
+
     if (link.isSection) {
       if (location.pathname !== '/') {
         navigate('/');
@@ -94,7 +102,14 @@ const Navbar: React.FC = () => {
                 </Link>
               )
             ))}
-            <Link to="/app" className="bg-primary hover:opacity-90 px-6 py-2.5 rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all text-white">
+            <Link
+              to="/app"
+              onClick={() => ReactGA.event({
+                category: "App Engagement",
+                action: "Clicked Launch App",
+              })}
+              className="bg-primary hover:opacity-90 px-6 py-2.5 rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all text-white"
+            >
               Launch App
             </Link>
           </div>
@@ -146,7 +161,14 @@ const Navbar: React.FC = () => {
             ))}
           </div>
           <div className="pt-4 mt-auto pb-8">
-            <Link to="/app" className="block w-full bg-primary hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-lg transition-colors">
+            <Link
+              to="/app"
+              onClick={() => ReactGA.event({
+                category: "App Engagement",
+                action: "Clicked Launch App",
+              })}
+              className="block w-full bg-primary hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-lg transition-colors"
+            >
               Launch App
             </Link>
           </div>
