@@ -27,20 +27,33 @@ export const ProductTour: React.FC = () => {
             return;
         }
 
-        const element = document.getElementById(currentStep.targetId);
-        if (element) {
-            // Scroll to element if not in view
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        let retryCount = 0;
+        const maxRetries = 10;
+        let timeoutId: ReturnType<typeof setTimeout>;
 
-            // Compute position after a tiny delay to allow scrolling
-            setTimeout(() => {
-                const rect = element.getBoundingClientRect();
-                setTargetRect(rect);
-            }, 300);
-        } else {
-            // If element not found, fallback to center or retry
-            setTargetRect(null);
-        }
+        const findElementAndSetRect = () => {
+            const element = document.getElementById(currentStep.targetId);
+            if (element) {
+                // Scroll to element if not in view
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Compute position after a tiny delay to allow scrolling
+                timeoutId = setTimeout(() => {
+                    const rect = element.getBoundingClientRect();
+                    setTargetRect(rect);
+                }, 300);
+            } else if (retryCount < maxRetries) {
+                retryCount++;
+                timeoutId = setTimeout(findElementAndSetRect, 100);
+            } else {
+                // If element not found, fallback to center or retry
+                setTargetRect(null);
+            }
+        };
+
+        findElementAndSetRect();
+
+        return () => clearTimeout(timeoutId);
     }, [isTourActive, currentStepIndex, steps, windowSize]);
 
     if (!isTourActive || steps.length === 0) return null;
@@ -128,12 +141,13 @@ export const ProductTour: React.FC = () => {
                     >
                         <div className="relative bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col md:flex-row">
                             {/* Doctor Avatar - Left Side */}
-                            <div className="bg-gradient-to-b from-blue-50 to-blue-100/50 p-4 md:p-6 flex items-end justify-center shrink-0 border-b md:border-b-0 md:border-r border-blue-100 relative">
-                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-blue-500/10 to-transparent" />
+                            <div className="w-[120px] md:w-[150px] bg-gradient-to-b from-blue-50 to-blue-100/50 flex flex-col justify-end items-center shrink-0 border-b md:border-b-0 md:border-r border-blue-100 relative overflow-hidden hidden sm:flex">
+                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-blue-500/10 to-transparent pointer-events-none" />
                                 <img
                                     src="/assets/tour/doctor_guide.png"
                                     alt="Dr. Guide"
-                                    className="w-24 h-auto md:w-32 object-contain relative z-10 drop-shadow-xl -mb-4 md:-mb-6"
+                                    className="w-full h-full object-cover object-bottom relative z-10 scale-110 origin-bottom"
+                                    style={{ mixBlendMode: 'multiply' }}
                                 />
                             </div>
 

@@ -4,6 +4,7 @@ export interface TourStep {
     targetId: string;
     title: string;
     content: string;
+    route?: string;
 }
 
 interface TourContextType {

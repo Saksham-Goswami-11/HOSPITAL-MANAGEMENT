@@ -17,7 +17,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, onLogout, view, setView, lockNavigation = false }: AppLayoutProps) {
     const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, inventory } = useHospital()
-    const { startTour } = useTour()
+    const { startTour, isTourActive, currentStepIndex, steps } = useTour()
     const role = userProfile?.role
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
@@ -37,6 +37,18 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
             return () => clearTimeout(timer);
         }
     }, [role, view, lockNavigation, startTour]);
+
+    // Orchestrate automatic route switching during the tour
+    useEffect(() => {
+        if (!isTourActive || steps.length === 0) return;
+        const currentStep = steps[currentStepIndex];
+        if (currentStep && currentStep.route && currentStep.route !== view) {
+            // we use setTimeout to ensure React finishes previous state updates if any
+            setTimeout(() => {
+                setView(currentStep.route);
+            }, 50);
+        }
+    }, [isTourActive, currentStepIndex, steps, setView, view]);
 
     // Calculate Low Stock Count for Badge
     const lowStockCount = useMemo(() => {
