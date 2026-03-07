@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
 export interface TourStep {
     targetId: string;
@@ -23,34 +23,32 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [steps, setSteps] = useState<TourStep[]>([]);
 
-    const startTour = (tourSteps: TourStep[]) => {
+    const startTour = useCallback((tourSteps: TourStep[]) => {
         setSteps(tourSteps);
         setCurrentStepIndex(0);
         setIsTourActive(true);
-    };
+    }, []);
 
-    const nextStep = () => {
-        if (currentStepIndex < steps.length - 1) {
-            setCurrentStepIndex(prev => prev + 1);
-        } else {
-            endTour();
-        }
-    };
-
-    const prevStep = () => {
-        if (currentStepIndex > 0) {
-            setCurrentStepIndex(prev => prev - 1);
-        }
-    };
-
-    const endTour = () => {
+    const endTour = useCallback(() => {
         setIsTourActive(false);
         setCurrentStepIndex(0);
         localStorage.setItem('medflow_tour_completed', 'true');
-    };
+    }, []);
 
-    // Optional: Auto-start tour if not completed before when starting logic is outside
-    // But usually we call startTour in the main layout if not completed.
+    const nextStep = useCallback(() => {
+        setCurrentStepIndex(prev => {
+            if (steps && prev < steps.length - 1) {
+                return prev + 1;
+            } else {
+                endTour();
+                return prev;
+            }
+        });
+    }, [steps, endTour]);
+
+    const prevStep = useCallback(() => {
+        setCurrentStepIndex(prev => (prev > 0 ? prev - 1 : prev));
+    }, []);
 
     return (
         <TourContext.Provider value={{ isTourActive, currentStepIndex, steps, startTour, nextStep, prevStep, endTour }}>

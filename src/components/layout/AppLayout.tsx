@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useHospital } from '@/context/HospitalContext'
 import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
 import { TrialBanner, PastDueBanner, ReadOnlyBanner, DowngradeResolutionModal } from '@/components/billing'
@@ -22,10 +22,15 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
 
+    const autoStartAttempted = useRef(false);
+
     useEffect(() => {
         if (!role || view === 'selection' || view === 'setup' || lockNavigation) return;
+        if (autoStartAttempted.current) return;
+
         const hasCompletedTour = localStorage.getItem('medflow_tour_completed');
         if (!hasCompletedTour) {
+            autoStartAttempted.current = true;
             const timer = setTimeout(() => {
                 startTour(TOUR_STEPS);
             }, 1000);
