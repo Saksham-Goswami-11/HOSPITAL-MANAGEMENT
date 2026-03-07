@@ -8,6 +8,8 @@ import { LoginPage } from "@/components/LoginPage";
 import { InventoryDashboard } from "@/components/InventoryDashboard";
 import { AdminSetup } from "@/components/AdminSetup";
 import { HospitalProvider, useHospital } from '@/context/HospitalContext';
+import { TourProvider } from '@/context/TourContext';
+import { ProductTour } from '@/components/ProductTour';
 import { ResetPasswordPage } from "@/components/ResetPasswordPage";
 import { HospitalsRegistry } from '@/components/HospitalsRegistry';
 import { HospitalDetails } from '@/components/HospitalDetails';
@@ -347,9 +349,12 @@ function AppRouter() {
 
 function App() {
     return (
-        <HospitalProvider>
-            <AppRouter />
-        </HospitalProvider>
+        <TourProvider>
+            <ProductTour />
+            <HospitalProvider>
+                <AppRouter />
+            </HospitalProvider>
+        </TourProvider>
     )
 }
 

@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useHospital } from '@/context/HospitalContext'
 import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
 import { TrialBanner, PastDueBanner, ReadOnlyBanner, DowngradeResolutionModal } from '@/components/billing'
 import { requestNotificationPermission } from '@/lib/notifications'
+import { useTour } from '@/context/TourContext'
+import { TOUR_STEPS } from '@/lib/tourSteps'
+import { Play } from 'lucide-react'
 
 interface AppLayoutProps {
     children: React.ReactNode
@@ -14,9 +17,21 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, onLogout, view, setView, lockNavigation = false }: AppLayoutProps) {
     const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, inventory } = useHospital()
+    const { startTour } = useTour()
     const role = userProfile?.role
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+
+    useEffect(() => {
+        if (!role || view === 'selection' || view === 'setup' || lockNavigation) return;
+        const hasCompletedTour = localStorage.getItem('medflow_tour_completed');
+        if (!hasCompletedTour) {
+            const timer = setTimeout(() => {
+                startTour(TOUR_STEPS);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [role, view, lockNavigation, startTour]);
 
     // Calculate Low Stock Count for Badge
     const lowStockCount = useMemo(() => {
@@ -28,8 +43,9 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
     }, [inventory, role, userProfile?.clinic_id]);
 
     // Helper for Navigation Items
-    const NavItem = ({ icon, label, active, onClick, disabled }: any) => (
+    const NavItem = ({ icon, label, active, onClick, disabled, id }: any) => (
         <button
+            id={id}
             onClick={() => {
                 if (!disabled) {
                     onClick()
@@ -126,6 +142,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                     {(role === 'ADMIN' || role === 'HOSPITAL_ADMIN') && (
                         <>
                             <NavItem
+                                id="tour-dashboard"
                                 icon="dashboard"
                                 label={lockNavigation ? "Setup Required" : "Dashboard"}
                                 active={view === 'admin' || view === 'setup'}
@@ -133,6 +150,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={false}
                             />
                             <NavItem
+                                id="tour-inventory"
                                 icon="inventory"
                                 label="Inventory"
                                 active={view === 'inventory-dashboard'}
@@ -140,6 +158,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                id="tour-staff"
                                 icon="badge"
                                 label="Staff Management"
                                 active={view === 'staff-management' || view === 'staff'}
@@ -147,6 +166,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                id="tour-shifts"
                                 icon="schedule"
                                 label="Shift Management"
                                 active={view === 'shift-management'}
@@ -154,6 +174,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                id="tour-earnings"
                                 icon="account_balance_wallet"
                                 label="Earnings"
                                 active={view === 'earnings'}
@@ -161,6 +182,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                id="tour-billing"
                                 icon="receipt_long"
                                 label="Subscription & Billing"
                                 active={view === 'billing'}
@@ -223,12 +245,14 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                     {(role === 'SUPER_ADMIN' || role === 'OWNER') && (
                         <>
                             <NavItem
+                                id="tour-dashboard"
                                 icon="dashboard"
                                 label="Command Center"
                                 active={view === 'admin'}
                                 onClick={() => setView('admin')}
                             />
                             <NavItem
+                                id="tour-hospitals"
                                 icon="domain"
                                 label="Hospitals Registry"
                                 active={view === 'hospitals'}
@@ -241,6 +265,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 onClick={() => setView('audit_logs')}
                             />
                             <NavItem
+                                id="tour-billing"
                                 icon="payments"
                                 label="Platform Billing"
                                 active={view === 'billing'}
@@ -273,6 +298,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                     {['ADMIN', 'HOSPITAL_ADMIN', 'CLINIC_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(role || '') && (
                         <div className="mb-2">
                             <NavItem
+                                id="tour-settings"
                                 icon="settings"
                                 label="Settings"
                                 active={view === 'settings'}
@@ -319,6 +345,13 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                     </div>
 
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => startTour(TOUR_STEPS)}
+                            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100/50 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
+                        >
+                            <Play className="w-3.5 h-3.5" />
+                            Replay Demo
+                        </button>
                         {/* Notifications */}
                         <div className="flex items-center gap-1 sm:gap-2">
                             {Notification.permission !== 'granted' && (
