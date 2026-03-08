@@ -28,7 +28,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
     const effectiveClinicId = clinicIdOverride || userProfile?.clinic_id
 
     // Check if user has permission to edit inventory
-    const canEditInventory = ['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(userProfile?.role || '');
+    const canEditInventory = ['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER', 'CLINIC_ADMIN', 'CLINIC_STAFF'].includes(userProfile?.role || '');
 
     // Handle pending restock from notifications
     useEffect(() => {
@@ -78,7 +78,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
 
     async function handleRestock(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
-        if (!effectiveClinicId && userProfile?.role !== 'ADMIN' && userProfile?.role !== 'HOSPITAL_ADMIN' && userProfile?.role !== 'SUPER_ADMIN' && userProfile?.role !== 'OWNER') return
+        if (!effectiveClinicId && !['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER', 'CLINIC_ADMIN', 'CLINIC_STAFF'].includes(userProfile?.role || '')) return
 
         setLoading(true)
         const formData = new FormData(e.currentTarget)
