@@ -29,7 +29,9 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
         if (autoStartAttempted.current) return;
 
         const hasCompletedTour = localStorage.getItem('aarogya_nidhi_tour_completed');
-        if (!hasCompletedTour) {
+        const isDesktop = window.innerWidth >= 768;
+
+        if (!hasCompletedTour && isDesktop) {
             autoStartAttempted.current = true;
             const timer = setTimeout(() => {
                 startTour(TOUR_STEPS);

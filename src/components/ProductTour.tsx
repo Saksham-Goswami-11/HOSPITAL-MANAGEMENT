@@ -56,7 +56,7 @@ export const ProductTour: React.FC = () => {
         return () => clearTimeout(timeoutId);
     }, [isTourActive, currentStepIndex, steps, windowSize]);
 
-    if (!isTourActive || steps.length === 0) return null;
+    if (!isTourActive || steps.length === 0 || windowSize.width < 768) return null;
 
     const currentStep = steps[currentStepIndex];
 
