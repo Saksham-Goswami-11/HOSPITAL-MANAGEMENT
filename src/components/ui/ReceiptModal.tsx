@@ -12,7 +12,7 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
     const myClinic = profile?.clinic_id ? clinics.find(c => c.id === profile.clinic_id) : null
     const activeClinic = managedClinic || myClinic
 
-    const receiptHeaderName = activeClinic?.name || hospital?.name || 'MedFlow Clinic'
+    const receiptHeaderName = activeClinic?.name || hospital?.name || 'Aarogya Nidhi Clinic'
     const receiptHeaderSubtext = activeClinic?.address || 'Excellence in Healthcare'
     if (!open) return null
 
@@ -79,7 +79,9 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
                                         <tr key={idx} className="border-b border-slate-50">
                                             <td className="py-1">{i.item_name}</td>
                                             <td className="text-center py-1">{i.quantity}</td>
-                                            <td className="text-right py-1">₹{i.price * i.quantity}</td>
+                                            <td className="text-right py-1">
+                                                ₹{((parseFloat(i.price) || 0) * (parseFloat(i.quantity) || 0)).toFixed(2)}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

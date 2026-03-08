@@ -18,7 +18,7 @@ const About: React.FC = () => {
             Elevating <span className="text-blue-600">Healthcare</span> <br />Through Innovation.
           </h1>
           <p className="text-xl text-slate-600 leading-relaxed max-w-3xl mx-auto font-medium">
-            MedFlow is more than software—it's a clinical operating system designed to eliminate complexity,
+            Aarogya Nidhi is more than software—it's a clinical operating system designed to eliminate complexity,
             so providers can focus on what matters most: saving lives and improving outcomes.
           </p>
         </div>
@@ -41,7 +41,7 @@ const About: React.FC = () => {
               <div className="relative z-10 space-y-8">
                 <div>
                   <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
-                    The MedFlow <span className="text-blue-600 italic">Story</span>
+                    The Aarogya Nidhi <span className="text-blue-600 italic">Story</span>
                   </h2>
                   <div className="flex items-center gap-4 mb-8">
                     <div className="w-12 h-1 bg-blue-600 rounded-full" />
@@ -51,7 +51,7 @@ const About: React.FC = () => {
 
                 <div className="space-y-6 text-lg text-slate-700 leading-relaxed italic font-serif">
                   <p className="border-l-4 border-blue-600/20 pl-6 py-2">
-                    "Hi, I'm Saksham Goswami, the developer behind MedFlow. I started this project with a simple realization: the software our doctors and clinic staff use every day shouldn't be harder to navigate than the medical problems they solve."
+                    "Hi, I'm Saksham Goswami, the developer behind Aarogya Nidhi. I started this project with a simple realization: the software our doctors and clinic staff use every day shouldn't be harder to navigate than the medical problems they solve."
                   </p>
                   <p className="pl-6">
                     "I saw a massive gap between clunky legacy systems and the smooth technology we use everywhere else. I’m not a massive corporate entity; I’m a developer on a mission to bring real, tangible change to healthcare operations."
@@ -86,8 +86,8 @@ const About: React.FC = () => {
                 <div className="absolute -inset-4 bg-gradient-to-tr from-blue-100 via-white to-emerald-50 rounded-[2.5rem] -z-10 animate-pulse-slow" />
                 <div className="relative overflow-hidden rounded-[2rem] shadow-2xl border-8 border-white group-hover:rotate-1 transition-transform duration-700">
                   <img
-                    src="/assets/about/medflow_story.png"
-                    alt="The MedFlow Journey"
+                    src="/assets/about/aarogya_nidhi_story.png"
+                    alt="The Aarogya Nidhi Journey"
                     className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-blue-900/5 mix-blend-multiply opacity-30 group-hover:opacity-0 transition-opacity duration-700" />
@@ -138,12 +138,12 @@ const About: React.FC = () => {
               {
                 icon: <Shield className="w-8 h-8" />,
                 title: "Security Paradox",
-                desc: "In healthcare, data trust is everything. I’ve built MedFlow with an 'invisible security' approach—enterprise-grade protection that keeps patient data safe without getting in the way of your workflow."
+                desc: "In healthcare, data trust is everything. I’ve built Aarogya Nidhi with an 'invisible security' approach—enterprise-grade protection that keeps patient data safe without getting in the way of your workflow."
               },
               {
                 icon: <Heart className="w-8 h-8" />,
                 title: "Built for the Frontline",
-                desc: "MedFlow wasn't built in a boardroom; it was built by looking at real hospital struggles. I design every interface to feel intuitive, so you can spend less time clicking and more time caring."
+                desc: "Aarogya Nidhi wasn't built in a boardroom; it was built by looking at real hospital struggles. I design every interface to feel intuitive, so you can spend less time clicking and more time caring."
               }
             ].map((v, i) => (
               <div key={i} className="bg-white p-10 rounded-3xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-100 transition-all duration-300 group flex flex-col h-full">
@@ -168,7 +168,7 @@ const About: React.FC = () => {
                 Ready to join the <br />future of healthcare?
               </h2>
               <p className="text-blue-100 text-lg max-w-xl mx-auto font-medium">
-                Join hundreds of forward-thinking facilities that are scaling efficiently with MedFlow.
+                Join hundreds of forward-thinking facilities that are scaling efficiently with Aarogya Nidhi.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link

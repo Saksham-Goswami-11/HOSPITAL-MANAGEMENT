@@ -79,7 +79,7 @@ const Navbar: React.FC = () => {
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-sm">
               <span className="material-symbols-outlined text-white text-xl">local_hospital</span>
             </div>
-            <span className="text-2xl font-extrabold tracking-tight text-slate-900">MedFlow</span>
+            <span className="text-2xl font-extrabold tracking-tight text-slate-900">Aarogya Nidhi</span>
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">

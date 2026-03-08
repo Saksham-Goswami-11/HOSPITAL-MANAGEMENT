@@ -28,7 +28,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
         if (!role || view === 'selection' || view === 'setup' || lockNavigation) return;
         if (autoStartAttempted.current) return;
 
-        const hasCompletedTour = localStorage.getItem('medflow_tour_completed');
+        const hasCompletedTour = localStorage.getItem('aarogya_nidhi_tour_completed');
         if (!hasCompletedTour) {
             autoStartAttempted.current = true;
             const timer = setTimeout(() => {
@@ -89,7 +89,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
     const getBrandName = () => {
         if (['SUPER_ADMIN', 'OWNER'].includes(role || '')) return 'SaaS Control';
         if (role === 'CLINIC_ADMIN' && myClinic) return myClinic.name;
-        return hospital?.name || 'MedFlow';
+        return hospital?.name || 'Aarogya Nidhi';
     }
 
     const getBrandSubtitle = () => {

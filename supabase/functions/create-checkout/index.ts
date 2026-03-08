@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
             .single();
 
         const amount = billing_cycle === 'annual' ? plan.price_annual_paise : plan.price_monthly_paise;
-        const description = `MedFlow ${plan.name} Plan (${billing_cycle})`;
+        const description = `Aarogya Nidhi ${plan.name} Plan (${billing_cycle})`;
 
         const rzpAuth = btoa(`${RZP_KEY_ID}:${RZP_KEY_SECRET}`);
         const orderRes = await fetch('https://api.razorpay.com/v1/orders', {

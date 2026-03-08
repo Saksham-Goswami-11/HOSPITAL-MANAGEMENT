@@ -96,7 +96,7 @@ export function ReadOnlyBanner({ onUpgradeClick }: { onUpgradeClick?: () => void
             <div className="flex items-center justify-center gap-2 flex-wrap">
                 <ShieldAlert className="w-4 h-4 text-amber-400" />
                 <span className="font-semibold">
-                    Your account is in read-only mode — subscribe to a plan to continue using MedFlow
+                    Your account is in read-only mode — subscribe to a plan to continue using Aarogya Nidhi
                 </span>
                 {daysUntilDeletion !== null && (
                     <span className="text-amber-300 font-bold">

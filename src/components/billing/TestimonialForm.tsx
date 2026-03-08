@@ -115,7 +115,7 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">How would you rate MedFlow?</Label>
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">How would you rate Aarogya Nidhi?</Label>
                         <div className="flex gap-2">
                             {[1, 2, 3, 4, 5].map((s) => (
                                 <button
@@ -145,7 +145,7 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
                         <Textarea
                             id="testimonial_text"
                             name="testimonial_text"
-                            placeholder="Share your experience using MedFlow. What features do you like most? How has it helped your clinic operations?"
+                            placeholder="Share your experience using Aarogya Nidhi. What features do you like most? How has it helped your clinic operations?"
                             required
                             className="min-h-[120px] bg-slate-50 border-slate-200 focus:bg-white transition-all resize-none"
                         />
@@ -188,7 +188,7 @@ export function TestimonialForm({ onSuccess }: TestimonialFormProps) {
 
                     <div className="flex items-center justify-center gap-2 text-[10px] text-slate-400 pt-2 border-t border-slate-100">
                         <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                        By submitting, you agree to let MedFlow use your testimonial for marketing purposes.
+                        By submitting, you agree to let Aarogya Nidhi use your testimonial for marketing purposes.
                     </div>
                 </form>
             </CardContent>

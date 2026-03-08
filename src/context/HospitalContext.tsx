@@ -42,6 +42,7 @@ type InventoryItem = {
     clinic_id: string;
     hospital_id: string;
     clinics?: { name: string };
+    is_active?: boolean;
     [key: string]: any;
 };
 
@@ -243,12 +244,16 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const fetchData = async (hospitalId: string) => {
         try {
             const clinicsData = await db.list('clinics', {
-                filters: [{ column: 'hospital_id', operator: 'eq', value: hospitalId }]
+                filters: [{ column: 'hospital_id', operator: 'eq', value: hospitalId }],
+                sort: { column: 'name', ascending: true }
             });
             setClinics(clinicsData);
 
             const inventoryData = await db.list('inventory', {
-                filters: [{ column: 'hospital_id', operator: 'eq', value: hospitalId }]
+                filters: [
+                    { column: 'hospital_id', operator: 'eq', value: hospitalId },
+                    { column: 'is_active', operator: 'eq', value: true }
+                ]
             });
             setInventory(inventoryData);
         } catch (err) {

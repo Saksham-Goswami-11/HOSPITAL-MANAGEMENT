@@ -91,7 +91,7 @@ const Contact: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="font-bold text-lg mb-1">Email us</h4>
-                    <p className="text-slate-400 font-medium">hello@medflow.healthcare</p>
+                    <p className="text-slate-400 font-medium">hello@aarogyanidhi.in</p>
                   </div>
                 </div>
                 <div className="flex gap-6 group">

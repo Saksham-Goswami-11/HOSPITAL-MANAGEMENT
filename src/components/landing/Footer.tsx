@@ -13,7 +13,7 @@ const Footer: React.FC = () => {
               <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
                 <div className="w-4 h-4 border-2 border-white rounded-sm transform rotate-45"></div>
               </div>
-              <span className="text-2xl font-bold tracking-tight text-slate-900">MedFlow</span>
+              <span className="text-2xl font-bold tracking-tight text-slate-900">Aarogya Nidhi</span>
             </Link>
             <p className="text-slate-600 max-w-xs mb-8 leading-relaxed">
               Revolutionizing healthcare management through integrated technology. Empowering providers, improving lives.
@@ -74,7 +74,7 @@ const Footer: React.FC = () => {
 
         <div className="text-center pt-8 border-t border-slate-200">
           <p className="text-xs text-slate-500">
-            &copy; 2026 MedFlow. All rights reserved. A Healthcare Solutions Company.
+            &copy; 2026 Aarogya Nidhi. All rights reserved. A Healthcare Solutions Company.
           </p>
         </div>
       </div>

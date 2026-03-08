@@ -33,7 +33,7 @@ export const TourProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const endTour = useCallback(() => {
         setIsTourActive(false);
         setCurrentStepIndex(0);
-        localStorage.setItem('medflow_tour_completed', 'true');
+        localStorage.setItem('aarogya_nidhi_tour_completed', 'true');
     }, []);
 
     const nextStep = useCallback(() => {

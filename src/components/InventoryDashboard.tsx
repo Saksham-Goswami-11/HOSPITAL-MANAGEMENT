@@ -29,6 +29,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
 
     // Check if user has permission to edit inventory
     const canEditInventory = ['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER', 'CLINIC_ADMIN', 'CLINIC_STAFF'].includes(userProfile?.role || '');
+    const canBulkDeleteInventory = ['ADMIN', 'HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(userProfile?.role || '');
 
     // Handle pending restock from notifications
     useEffect(() => {
@@ -334,6 +335,11 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
     }
 
     const handleRemoveExpired = async () => {
+        if (!canBulkDeleteInventory) {
+            toast({ title: 'Permission Denied', description: 'Only Hospital Administrators can remove expired items.', variant: 'destructive' });
+            return;
+        }
+
         const expiredItems = inventory.filter(i => {
             const matchesClinicOverride = effectiveClinicId ? i.clinic_id === effectiveClinicId : true;
             return matchesClinicOverride && new Date(i.expiry_date) < now;
@@ -344,16 +350,16 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             return;
         }
 
-        if (!confirm(`Are you sure you want to permanently remove ${expiredItems.length} expired items? This action cannot be undone.`)) {
+        if (!confirm(`Are you sure you want to archive ${expiredItems.length} expired items? They will no longer appear in the inventory list, but historical records will be preserved.`)) {
             return;
         }
 
         setLoading(true);
         try {
-            await Promise.all(expiredItems.map(item => db.remove('inventory', item.id)));
+            await Promise.all(expiredItems.map(item => db.update('inventory', item.id, { is_active: false })));
             toast({
                 title: 'Success',
-                description: `Successfully removed ${expiredItems.length} expired items.`,
+                description: `Successfully archived ${expiredItems.length} expired items.`,
                 variant: 'default'
             });
             await refreshData();
@@ -464,7 +470,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 <span className="material-symbols-outlined text-[16px]">{isFullScreen ? 'fullscreen_exit' : 'fullscreen'}</span>
                                 {isFullScreen ? 'COLLAPSE' : 'EXPAND TABLE'}
                             </button>
-                            {canEditInventory && expiredCount > 0 && (
+                            {canBulkDeleteInventory && expiredCount > 0 && (
                                 <button
                                     onClick={handleRemoveExpired}
                                     disabled={loading}

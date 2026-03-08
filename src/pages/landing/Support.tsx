@@ -4,9 +4,9 @@ import { HelpCircle, Code, MessageCircle, BookOpen } from 'lucide-react';
 const Support: React.FC = () => {
   const resources = [
     { title: "Help Center", icon: <HelpCircle />, desc: "Detailed guides for every feature." },
-    { title: "Developer API", icon: <Code />, desc: "Integrate MedFlow into your existing apps." },
+    { title: "Developer API", icon: <Code />, desc: "Integrate Aarogya Nidhi into your existing apps." },
     { title: "Training", icon: <BookOpen />, desc: "Schedule a session with our specialists." },
-    { title: "Community Forum", icon: <MessageCircle />, desc: "Connect with other MedFlow users." }
+    { title: "Community Forum", icon: <MessageCircle />, desc: "Connect with other Aarogya Nidhi users." }
   ];
 
   return (
@@ -14,7 +14,7 @@ const Support: React.FC = () => {
       <section className="bg-slate-50 border-b border-slate-100 py-24 text-center">
         <div className="max-w-4xl mx-auto px-4">
           <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Support <span className="text-blue-600">Center</span></h1>
-          <p className="text-xl text-slate-400">Everything you need to master MedFlow.</p>
+          <p className="text-xl text-slate-400">Everything you need to master Aarogya Nidhi.</p>
         </div>
       </section>
 

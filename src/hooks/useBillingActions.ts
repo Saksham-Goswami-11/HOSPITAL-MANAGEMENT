@@ -87,7 +87,7 @@ export function useBillingActions() {
                 key: checkout.key_id,
                 amount: checkout.amount,
                 currency: checkout.currency,
-                name: 'MedFlow',
+                name: 'Aarogya Nidhi',
                 description: checkout.description,
                 order_id: checkout.order_id,
                 prefill: {

@@ -168,10 +168,12 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                         const invDoc = await db.get('inventory', item.inventory_id);
                         itemName = invDoc?.item_name || 'Deleted Item';
                     }
+                    // We use item.price OR item.unit_price to be safe across different schema versions
+                    const priceValue = item.price !== undefined ? item.price : item.unit_price;
                     return {
                         item_name: itemName,
-                        quantity: item.quantity,
-                        price: item.price
+                        quantity: Number(item.quantity) || 0,
+                        price: Number(priceValue) || 0
                     }
                 }));
                 setSelectedReceiptItems(formattedItems);

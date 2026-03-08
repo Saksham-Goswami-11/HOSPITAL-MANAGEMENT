@@ -56,6 +56,7 @@ export function SettingsDashboard() {
                 description: "Your configurations have been updated organization-wide.",
             })
         } catch (error) {
+            console.error('Hospital settings save error:', error);
             toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
         } finally {
             setLoading(false);
@@ -73,6 +74,7 @@ export function SettingsDashboard() {
                 description: "Your local clinic configurations have been updated.",
             })
         } catch (error) {
+            console.error('Clinic settings save error:', error);
             toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
         } finally {
             setLoading(false);
@@ -102,6 +104,7 @@ export function SettingsDashboard() {
                 description: "Primary organization details updated.",
             })
         } catch (error) {
+            console.error('Hospital profile save error:', error);
             toast({ title: "Error", description: "Failed to save profile.", variant: "destructive" });
         } finally {
             setLoading(false);
@@ -132,6 +135,7 @@ export function SettingsDashboard() {
                 description: "Local clinic identity updated.",
             })
         } catch (error) {
+            console.error('Clinic profile save error:', error);
             toast({ title: "Error", description: "Failed to save profile.", variant: "destructive" });
         } finally {
             setLoading(false);

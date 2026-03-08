@@ -13,7 +13,7 @@ const Privacy: React.FC = () => {
             <div>
               <div className="prose prose-slate max-w-none text-slate-600 space-y-8">
                 <p className="text-lg leading-relaxed">
-                  MedFlow ("we", "our", or "us") is committed to protecting the privacy and security of your health data.
+                  Aarogya Nidhi ("we", "our", or "us") is committed to protecting the privacy and security of your health data.
                   This Privacy Policy explains how we collect, use, and safeguard information when you use our platform.
                 </p>
               </div>
@@ -31,7 +31,7 @@ const Privacy: React.FC = () => {
               <h2 className="text-2xl font-bold text-slate-900 mb-6">1. Data Ownership & Sovereignty</h2>
               <div className="w-16 h-1 bg-blue-600 rounded-full mb-8"></div>
               <p>
-                Unlike other platforms, MedFlow does not own your clinical data. You retain full sovereignty over your institution's data at all times.
+                Unlike other platforms, Aarogya Nidhi does not own your clinical data. You retain full sovereignty over your institution's data at all times.
               </p>
             </div>
 

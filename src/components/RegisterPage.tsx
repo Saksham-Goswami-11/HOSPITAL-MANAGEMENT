@@ -122,7 +122,7 @@ export function RegisterPage() {
                                 <Input
                                     id="email"
                                     type="email"
-                                    placeholder="john@medflow.com"
+                                    placeholder="john@aarogyanidhi.in"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white transition-all rounded-xl"
