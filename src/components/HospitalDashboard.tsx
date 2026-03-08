@@ -225,10 +225,10 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
 
             // 2. Call RPC via DataService
             const rpcParams = {
-                clinic_name: clinicName,
-                clinic_address: location,
-                staff_user_id: newUser.id,
-                staff_name: staffName,
+                p_clinic_name: clinicName,
+                p_clinic_address: location,
+                p_staff_user_id: newUser.id,
+                p_staff_name: staffName,
                 p_hospital_id: profile?.hospital_id
             }
 
