@@ -24,7 +24,7 @@ interface HospitalDashboardProps {
 
 export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const { toast } = useToast()
-    const { inventory, hospital, clinics, profile, billing, updateClinicProfile } = useHospital()
+    const { inventory, hospital, clinics, profile, billing, updateClinicProfile, revenueSummary, expiringItems, loading } = useHospital()
 
     // Derived state from context
     const aggregatedInventory = useMemo(() => {
@@ -53,9 +53,6 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
 
     const [isRegisterOpen, setIsRegisterOpen] = useState(false)
     const [registerLoading, setRegisterLoading] = useState(false)
-    const [expiringItems, setExpiringItems] = useState<any[]>([])
-    const [revenueSummary, setRevenueSummary] = useState<any[]>([])
-    const [loadingStats, setLoadingStats] = useState(true)
 
     // Advanced Analytics State
     const [salesData, setSalesData] = useState<any[]>([])
@@ -69,41 +66,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const [analyticsLoading, setAnalyticsLoading] = useState(true)
     const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
-    // Fetch Expiring Items (< 30 days) & Revenue Summary
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            if (!profile?.hospital_id) return;
-
-            const thirtyDaysFromNow = new Date()
-            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-            const today = new Date().toISOString().split('T')[0]
-
-            try {
-                // 1. Expiring Items
-                const expiryData = await db.list('inventory', {
-                    filters: [
-                        { column: 'hospital_id', operator: '==', value: profile.hospital_id },
-                        { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow.toISOString() },
-                        { column: 'quantity', operator: '>', value: 0 }
-                    ]
-                });
-                setExpiringItems(expiryData)
-
-                // 2. Revenue Summary
-                const revData = await db.list('admin_revenue_summary', {
-                    filters: [
-                        { column: 'revenue_date', operator: '==', value: today }
-                    ]
-                });
-                setRevenueSummary(revData)
-            } catch (err) {
-                console.error('Error fetching dashboard data:', err)
-            } finally {
-                setLoadingStats(false)
-            }
-        }
-        fetchDashboardData()
-    }, [profile])
+    // Dashboard data is now fetched and synced via HospitalContext real-time subscriptions
 
     // 3. Analytics Data Fetching & Aggregation
     useEffect(() => {
@@ -790,7 +753,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                 )) : (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-8 text-center text-slate-400 italic">
-                                            {loadingStats ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "No sales data recorded today."}
+                                            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "No sales data recorded today."}
                                         </td>
                                     </tr>
                                 )}

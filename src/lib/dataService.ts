@@ -16,7 +16,7 @@ export interface DataService {
     callRpc: (name: string, params: any) => Promise<any>;
     invokeFunction: (name: string, options?: any) => Promise<any>;
     count: (table: string, filters?: any) => Promise<number>;
-    subscribe: (table: string, callback: (payload: any) => void) => () => void;
+    subscribe: (table: string, callback: (payload: any) => void, event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*') => () => void;
 }
 
 // Helper to normalize filters
@@ -128,18 +128,18 @@ class SupabaseService implements DataService {
         if (error) throw error;
         return count || 0;
     }
-    subscribe(table: string, callback: (payload: any) => void) {
+    subscribe(table: string, callback: (payload: any) => void, event: 'INSERT' | 'UPDATE' | 'DELETE' | '*' = 'INSERT') {
         const channel = supabase
             .channel(`public:${table}`)
             .on(
-                'postgres_changes',
+                'postgres_changes' as any,
                 {
-                    event: 'INSERT',
+                    event: event,
                     schema: 'public',
                     table: table
                 },
-                (payload) => {
-                    callback(payload.new);
+                (payload: any) => {
+                    callback(payload.new || payload.old);
                 }
             )
             .subscribe();

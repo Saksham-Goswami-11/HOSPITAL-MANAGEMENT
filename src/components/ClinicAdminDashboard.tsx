@@ -66,6 +66,15 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
 
     useEffect(() => {
         fetchData()
+
+        // Add real-time listener for sales in this clinic
+        const unsubscribe = db.subscribe('sales', (payload) => {
+            if (payload.clinic_id === clinicId) {
+                fetchData();
+            }
+        }, '*');
+
+        return () => unsubscribe();
     }, [clinicId, managedClinic, dateRange])
 
     const fetchData = async () => {

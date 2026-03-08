@@ -85,6 +85,9 @@ interface HospitalContextType {
     notifications: Notification[];
     unseenCount: number;
     markNotificationsAsSeen: () => void;
+    revenueSummary: any[];
+    expiringItems: any[];
+    fetchDashboardStats: () => Promise<void>;
 }
 
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
@@ -101,6 +104,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const [pendingRestockId, setPendingRestockId] = useState<string | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [lastSeenAt, setLastSeenAt] = useState<string>(() => localStorage.getItem('last_seen_notifications_at') || '2000-01-01T00:00:00.000Z');
+    const [revenueSummary, setRevenueSummary] = useState<any[]>([]);
+    const [expiringItems, setExpiringItems] = useState<any[]>([]);
 
     const rawBilling = useSubscription(profile?.hospital_id);
 
@@ -293,29 +298,77 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         }
     }, [inventory, loading, profile]);
 
-    // Real-time sales notifications
+    const fetchDashboardStats = async () => {
+        if (!profile?.hospital_id) return;
+
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        const today = new Date().toISOString().split('T')[0];
+
+        try {
+            // 1. Expiring Items
+            const expiryData = await db.list('inventory', {
+                filters: [
+                    { column: 'hospital_id', operator: '==', value: profile.hospital_id },
+                    { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow.toISOString() },
+                    { column: 'quantity', operator: '>', value: 0 }
+                ]
+            });
+            setExpiringItems(expiryData);
+
+            // 2. Revenue Summary
+            const revData = await db.list('admin_revenue_summary', {
+                filters: [
+                    { column: 'revenue_date', operator: '==', value: today }
+                ]
+            });
+            setRevenueSummary(revData);
+        } catch (err) {
+            console.error('Error fetching dashboard stats:', err);
+        }
+    };
+
+    // Unified Real-time Subscription
     useEffect(() => {
         if (!profile?.hospital_id) return;
 
-        const unsubscribe = db.subscribe('sales', (newSale) => {
-            // Check if this sale belongs to current hospital
-            if (newSale.hospital_id !== profile.hospital_id) return;
+        const subs = [
+            // Handle sales for both notifications and dashboard stats
+            db.subscribe('sales', (newSale) => {
+                if (newSale.hospital_id !== profile.hospital_id) return;
 
-            // If clinic-level user, check clinic ID
-            if (profile.role === 'CLINIC_ADMIN' && newSale.clinic_id !== profile.clinic_id) return;
+                // Update notifications
+                fetchNotifications();
+                // Update stats
+                fetchDashboardStats();
 
-            const isConsultation = newSale.sale_type === 'CONSULTATION';
-            const title = isConsultation ? 'New Consultation' : 'New Pharmacy Sale';
-            const body = `₹${newSale.amount?.toLocaleString()} • ${newSale.patient_name} • Dr. ${newSale.doctor_name}`;
+                // Show push notification
+                const isConsultation = newSale.sale_type === 'CONSULTATION';
+                if ((profile.role === 'CLINIC_ADMIN' && newSale.clinic_id === profile.clinic_id) ||
+                    ['HOSPITAL_ADMIN', 'ADMIN', 'OWNER'].includes(profile.role)) {
+                    showNotification(isConsultation ? 'New Consultation' : 'New Pharmacy Sale', {
+                        body: `₹${newSale.amount?.toLocaleString()} • ${newSale.patient_name} • Dr. ${newSale.doctor_name}`,
+                        tag: `sale-${newSale.id}`,
+                        icon: isConsultation ? '/stethoscope.png' : '/medication.png'
+                    });
+                }
+            }, '*'),
 
-            showNotification(title, {
-                body,
-                tag: `sale-${newSale.id}`,
-                icon: isConsultation ? '/stethoscope.png' : '/medication.png' // Use fallback if icons not present
-            });
-        });
+            // Handle inventory changes
+            db.subscribe('inventory', (item) => {
+                if (item.hospital_id !== profile.hospital_id) return;
+                fetchData(profile.hospital_id);
+                fetchDashboardStats();
+            }, '*'),
 
-        return () => unsubscribe();
+            // Handle clinic changes
+            db.subscribe('clinics', (clinic) => {
+                if (clinic.hospital_id !== profile.hospital_id) return;
+                fetchData(profile.hospital_id);
+            }, '*')
+        ];
+
+        return () => subs.forEach(unsub => unsub());
     }, [profile]);
 
     const fetchProfile = async (userId: string) => {
@@ -368,6 +421,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                 ]
             });
             setInventory(inventoryData);
+
+            await fetchDashboardStats();
         } catch (err) {
             console.error("Error fetching data:", err);
         } finally {
@@ -463,7 +518,10 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             setPendingRestockId,
             notifications,
             unseenCount,
-            markNotificationsAsSeen
+            markNotificationsAsSeen,
+            revenueSummary,
+            expiringItems,
+            fetchDashboardStats
         }}
         >
             {children}
