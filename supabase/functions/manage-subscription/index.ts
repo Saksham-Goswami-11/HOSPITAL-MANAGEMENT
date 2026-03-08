@@ -1,3 +1,4 @@
+/// <reference path="../_types.d.ts" />
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,7 +19,7 @@ Deno.serve(async (req: Request) => {
         const authHeader = req.headers.get('Authorization');
 
         console.log('Incoming request:', req.method);
-        console.log('Auth Header present:', !!authHeader);
+        console.log('Auth Heazder present:', !!authHeader);
 
         if (!authHeader) {
             console.error('No Authorization header provided');
