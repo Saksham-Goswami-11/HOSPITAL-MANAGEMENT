@@ -87,7 +87,7 @@ interface HospitalContextType {
     markNotificationsAsSeen: () => void;
     revenueSummary: any[];
     expiringItems: any[];
-    fetchDashboardStats: (hospitalId?: string) => Promise<void>;
+    fetchDashboardStats: (hospitalId?: string, clinicsOverride?: Clinic[]) => Promise<void>;
 }
 
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
@@ -298,7 +298,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         }
     }, [inventory, loading, profile]);
 
-    const fetchDashboardStats = async (hospitalId?: string) => {
+    const fetchDashboardStats = async (hospitalId?: string, clinicsOverride?: Clinic[]) => {
         const hId = hospitalId || profile?.hospital_id;
         if (!hId) return;
 
@@ -309,14 +309,26 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
         try {
             // 1. Expiring Items - Using date string instead of ISO string for 'date' column
+            // Added is_active: true filter to exclude archived items
             const expiryData = await db.list('inventory', {
                 filters: [
                     { column: 'hospital_id', operator: '==', value: hId },
+                    { column: 'is_active', operator: '==', value: true },
                     { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow },
                     { column: 'quantity', operator: '>', value: 0 }
-                ]
+                ],
+                select: '*, clinics(name)'
             });
-            setExpiringItems(expiryData);
+
+            if (expiryData) {
+                const results = expiryData.map((item: any) => ({
+                    ...item,
+                    clinic_name: Array.isArray(item.clinics) ? item.clinics[0]?.name : item.clinics?.name
+                }));
+                setExpiringItems(results);
+            } else {
+                setExpiringItems([]);
+            }
 
             // 2. Revenue Summary - Querying sales directly for reliability
             // The view admin_revenue_summary has internal filters that might fail for some users
@@ -329,10 +341,12 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
             // Aggregate sales by clinic to mimic the view structure
             // View structure: { clinic_id, clinic_name, total_revenue, transaction_count, revenue_date }
+            // Using clinicsOverride || clinics to solve race condition for 'Unknown Clinic'
+            const effectiveClinics = clinicsOverride || clinics;
             const aggregated = todaySales.reduce((acc: any, sale: any) => {
                 const clinicId = sale.clinic_id;
                 if (!acc[clinicId]) {
-                    const clinic = clinics.find(c => c.id === clinicId);
+                    const clinic = effectiveClinics.find(c => c.id === clinicId);
                     acc[clinicId] = {
                         clinic_id: clinicId,
                         clinic_name: clinic?.name || 'Unknown Clinic',
@@ -446,7 +460,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             });
             setInventory(inventoryData);
 
-            await fetchDashboardStats(hospitalId);
+            await fetchDashboardStats(hospitalId, clinicsData);
         } catch (err) {
             console.error("Error fetching data:", err);
         } finally {

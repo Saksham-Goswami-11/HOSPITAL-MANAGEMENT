@@ -461,7 +461,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                         <div key={idx} className="flex justify-between items-center p-3 bg-amber-50/50 rounded-xl border border-amber-100 group">
                                             <div>
                                                 <p className="font-bold text-slate-900">{item.item_name}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold uppercase">{item.clinics?.name}</p>
+                                                <p className="text-[10px] text-slate-500 font-bold uppercase">{item.clinic_name}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-bold text-amber-600 font-mono group-hover:scale-110 transition-transform">{new Date(item.expiry_date).toLocaleDateString()}</p>
