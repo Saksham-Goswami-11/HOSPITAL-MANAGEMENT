@@ -45,25 +45,51 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
 
     const now = new Date();
 
+    const aggregatedInventory = useMemo(() => {
+        const groups = new Map();
+        inventory.forEach(item => {
+            const matchesClinicOverride = effectiveClinicId ? item.clinic_id === effectiveClinicId : true;
+            if (!matchesClinicOverride) return;
+
+            const name = item.item_name?.trim();
+            if (!name) return;
+
+            if (!groups.has(name)) {
+                groups.set(name, { ...item, total_quantity: 0 });
+            }
+            const record = groups.get(name);
+            record.total_quantity += (item.quantity || 0);
+        });
+        return Array.from(groups.values());
+    }, [inventory, effectiveClinicId]);
+
+    const lowStockItemsAggregated = useMemo(() => {
+        return aggregatedInventory.filter((i: any) => {
+            const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+            return i.total_quantity < threshold;
+        });
+    }, [aggregatedInventory, hospital]);
+
     const filteredInventory = useMemo(() => {
         return inventory.filter(i => {
             const matchesClinicOverride = effectiveClinicId ? i.clinic_id === effectiveClinicId : true;
             const matchesDropdownFilter = filterClinicId !== 'all' ? i.clinic_id === filterClinicId : true;
-            const matchesSearch = i.item_name.toLowerCase().includes(searchQuery.toLowerCase()) || i.batch_number.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = (i.item_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (i.batch_number || '').toLowerCase().includes(searchQuery.toLowerCase());
 
             let matchesType = true;
-            const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-            if (filterType === 'low') matchesType = i.quantity < threshold;
+            if (filterType === 'low') {
+                // An item matches 'low' if its AGGREGATED stock is low
+                const isAggregatedLow = lowStockItemsAggregated.some(agg => agg.item_name === i.item_name && agg.clinic_id === i.clinic_id);
+                matchesType = isAggregatedLow;
+            }
             if (filterType === 'expired') matchesType = new Date(i.expiry_date) < now;
 
             return matchesClinicOverride && matchesDropdownFilter && matchesSearch && matchesType;
         });
-    }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType]);
+    }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType, lowStockItemsAggregated]);
 
-    const lowStockCount = inventory.filter(i => {
-        const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-        return (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && i.quantity < threshold;
-    }).length;
+    const lowStockCount = lowStockItemsAggregated.length;
     const expiredCount = inventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && new Date(i.expiry_date) < now).length;
 
     const getIconInfo = (itemName: string) => {
@@ -100,8 +126,8 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
         try {
             const existingItems = inventory.filter(i =>
                 i.clinic_id === targetClinicId &&
-                i.item_name.toLowerCase() === item_name.toLowerCase() &&
-                i.batch_number.toLowerCase() === batch_number.toLowerCase() &&
+                (i.item_name || '').toLowerCase() === item_name.toLowerCase() &&
+                (i.batch_number || '').toLowerCase() === (batch_number || '').toLowerCase() &&
                 i.expiry_date === expiry_date
             );
 
@@ -519,7 +545,9 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                     filteredInventory.map(item => {
                                         const { icon, color } = getIconInfo(item.item_name);
                                         const threshold = item.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-                                        const isLow = item.quantity < threshold;
+                                        const agg = aggregatedInventory.find(a => a.item_name === item.item_name && a.clinic_id === item.clinic_id);
+                                        const totalQty = (agg as any)?.total_quantity || item.quantity;
+                                        const isLow = totalQty < threshold;
                                         const isExpired = new Date(item.expiry_date) < now;
                                         const pct = Math.min(100, Math.max(5, (item.quantity / (item.threshold * 2 || 100)) * 100));
 
@@ -674,19 +702,16 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 </h3>
                             </div>
                             <div className="space-y-3">
-                                {filteredInventory.slice(0, 3).filter(item => {
-                                    const threshold = item.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-                                    return item.quantity < threshold;
-                                }).map(item => (
+                                {lowStockItemsAggregated.slice(0, 3).map(item => (
                                     <div key={'alert-' + item.id} className="flex items-start gap-3 p-3 rounded-xl border border-orange-100 bg-orange-50/30">
                                         <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 shrink-0 animate-pulse"></div>
                                         <div className="min-w-0">
                                             <p className="text-[13px] font-bold text-slate-800 leading-tight">Stock Minimum Threshold: {item.item_name}</p>
-                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-medium">Only {item.quantity} units left • Action Reqd</p>
+                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-medium">Only {(item as any).total_quantity} units left • Action Reqd</p>
                                         </div>
                                     </div>
                                 ))}
-                                {filteredInventory.filter(i => i.quantity < (i.threshold || 10)).length === 0 && (
+                                {lowStockCount === 0 && (
                                     <div className="text-center py-6 px-4 bg-white rounded-xl border border-slate-100 border-dashed">
                                         <span className="material-symbols-outlined text-3xl text-emerald-200 mb-2">inventory</span>
                                         <p className="text-xs font-medium text-slate-500">All inventory items are currently above their minimum thresholds.</p>
@@ -707,6 +732,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">Restock Item</DialogTitle>
+                            <p className="sr-only">Form to add quantity and update batch details for an inventory item</p>
                             <p className="text-xs text-slate-500 mt-0.5">Add inventory for <span className="font-bold text-slate-700">{restockItem?.item_name}</span></p>
                         </div>
                     </div>
@@ -724,11 +750,11 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Batch Number</Label>
-                                    <Input name="batch_number" placeholder="Enter batch number" className="bg-white border-slate-200 font-mono text-sm h-10" required />
+                                    <Input name="batch_number" defaultValue={restockItem.batch_number} placeholder="Enter batch number" className="bg-white border-slate-200 font-mono text-sm h-10" required />
                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Expiry Date</Label>
-                                    <Input name="expiry_date" type="date" className="bg-white border-slate-200 text-sm h-10" required />
+                                    <Input name="expiry_date" type="date" defaultValue={restockItem.expiry_date} className="bg-white border-slate-200 text-sm h-10" required />
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
@@ -753,6 +779,7 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">Edit Inventory Record</DialogTitle>
+                            <p className="sr-only">Form to modify existing inventory details including stock levels and batch information</p>
                             <p className="text-xs text-slate-500 mt-0.5">Modify stock counts and item details manually</p>
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useHospital } from '@/context/HospitalContext'
 import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
 import { TrialBanner, PastDueBanner, ReadOnlyBanner, DowngradeResolutionModal } from '@/components/billing'
@@ -16,7 +16,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children, onLogout, view, setView, lockNavigation = false }: AppLayoutProps) {
-    const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, inventory } = useHospital()
+    const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, unseenCount } = useHospital()
     const { startTour, isTourActive, currentStepIndex, steps } = useTour()
     const role = userProfile?.role
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -52,14 +52,6 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
         }
     }, [isTourActive, currentStepIndex, steps, setView, view]);
 
-    // Calculate Low Stock Count for Badge
-    const lowStockCount = useMemo(() => {
-        let items = inventory;
-        if (role === 'CLINIC_ADMIN' || role === 'CLINIC_STAFF') {
-            items = inventory.filter(i => i.clinic_id === userProfile?.clinic_id);
-        }
-        return items.filter(i => i.quantity < i.threshold).length;
-    }, [inventory, role, userProfile?.clinic_id]);
 
     // Helper for Navigation Items
     const NavItem = ({ icon, label, active, onClick, disabled, id }: any) => (
@@ -394,9 +386,9 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 className="relative p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all active:scale-95 group"
                             >
                                 <span className="material-symbols-outlined text-2xl group-hover:rotate-[15deg] transition-transform">notifications</span>
-                                {lowStockCount > 0 && (
+                                {unseenCount > 0 && (
                                     <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white group-hover:scale-110 transition-transform">
-                                        {lowStockCount > 99 ? '99+' : lowStockCount}
+                                        {unseenCount > 99 ? '99+' : unseenCount}
                                     </span>
                                 )}
                             </button>

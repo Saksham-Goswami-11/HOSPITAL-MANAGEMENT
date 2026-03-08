@@ -47,7 +47,22 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
 
     // Filtered Inventory for this clinic
     const clinicInventory = inventory.filter((i: any) => i.clinic_id === clinicId)
-    const lowStock = clinicInventory.filter((i: any) => i.quantity < i.threshold)
+
+    // Aggregated low stock calculation (per item name)
+    const lowStock = useMemo(() => {
+        const groups = new Map();
+        clinicInventory.forEach(item => {
+            const name = item.item_name?.trim();
+            if (!name) return;
+            if (!groups.has(name)) {
+                groups.set(name, { ...item, total_quantity: 0 });
+            }
+            const record = groups.get(name);
+            record.total_quantity += (item.quantity || 0);
+        });
+
+        return Array.from(groups.values()).filter((i: any) => i.total_quantity < (i.threshold || 10));
+    }, [clinicInventory]);
 
     useEffect(() => {
         fetchData()
@@ -258,7 +273,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 <h3 className="text-3xl font-bold mt-1 text-slate-900">₹{stats.revenue.toLocaleString()}</h3>
                             </div>
                             <div className="mt-6 h-12 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <BarChart data={weeklyData}>
                                         <Bar
                                             dataKey="revenue"
@@ -284,6 +299,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 <span className="material-symbols-outlined text-blue-600 text-3xl">receipt_long</span>
                                 Today's Transactions
                             </DialogTitle>
+                            <p className="sr-only">Detailed list of all revenue transactions for the current day</p>
                         </DialogHeader>
                         <div className="flex-1 overflow-auto mt-4 pr-2">
                             {filteredTransactions.length === 0 ? (
@@ -417,7 +433,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                 </div>
 
                 <div className="h-[300px] w-full mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <AreaChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
@@ -515,7 +531,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700">Low Stock Alert</p>
-                                    <p className="text-xs text-slate-500 font-medium truncate">{item.item_name} • {item.quantity} units left</p>
+                                    <p className="text-xs text-slate-500 font-medium truncate">{item.item_name} • {(item as any).total_quantity} units left</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
@@ -552,6 +568,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 </div>
                                 <div>
                                     <DialogTitle className="text-xl font-bold text-slate-900">Low Stock Alert</DialogTitle>
+                                    <p className="sr-only">Inventory details and restock options for low stock items</p>
                                     <p className="text-xs text-orange-600 font-bold uppercase tracking-wider mt-0.5">Immediate Restock Required</p>
                                 </div>
                             </div>
@@ -570,7 +587,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
                                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">In Stock</p>
-                                        <p className="text-2xl font-bold text-orange-600 mt-1">{selectedStockItem.quantity}</p>
+                                        <p className="text-2xl font-bold text-orange-600 mt-1">{(selectedStockItem as any).total_quantity}</p>
                                         <p className="text-[10px] text-slate-400">units left</p>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
@@ -580,7 +597,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                     </div>
                                     <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-center">
                                         <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Deficit</p>
-                                        <p className="text-2xl font-bold text-red-600 mt-1">{Math.max(0, (selectedStockItem.threshold || 10) - selectedStockItem.quantity)}</p>
+                                        <p className="text-2xl font-bold text-red-600 mt-1">{Math.max(0, (selectedStockItem.threshold || 10) - (selectedStockItem as any).total_quantity)}</p>
                                         <p className="text-[10px] text-red-400">units short</p>
                                     </div>
                                 </div>
@@ -588,12 +605,12 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
                                         <span>Stock Level</span>
-                                        <span className="text-orange-600">{Math.round((selectedStockItem.quantity / (selectedStockItem.threshold || 10)) * 100)}% of threshold</span>
+                                        <span className="text-orange-600">{Math.round(((selectedStockItem as any).total_quantity / (selectedStockItem.threshold || 10)) * 100)}% of threshold</span>
                                     </div>
                                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                                         <div
                                             className="h-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 transition-all"
-                                            style={{ width: `${Math.min(100, Math.round((selectedStockItem.quantity / (selectedStockItem.threshold || 10)) * 100))}%` }}
+                                            style={{ width: `${Math.min(100, Math.round(((selectedStockItem as any).total_quantity / (selectedStockItem.threshold || 10)) * 100))}%` }}
                                         />
                                     </div>
                                 </div>

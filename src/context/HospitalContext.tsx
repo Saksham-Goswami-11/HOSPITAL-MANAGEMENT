@@ -43,8 +43,21 @@ type InventoryItem = {
     hospital_id: string;
     clinics?: { name: string };
     is_active?: boolean;
+    updated_at?: string;
     [key: string]: any;
 };
+
+export interface Notification {
+    id: string;
+    type: 'sale' | 'low_stock' | 'consultation' | 'pharmacy';
+    title: string;
+    message: string;
+    timestamp: string;
+    clinicName?: string;
+    icon: string;
+    color: string;
+    data?: any;
+}
 
 interface HospitalContextType {
     session: any;
@@ -69,6 +82,9 @@ interface HospitalContextType {
     activeClinics: Clinic[];
     pendingRestockId: string | null;
     setPendingRestockId: (id: string | null) => void;
+    notifications: Notification[];
+    unseenCount: number;
+    markNotificationsAsSeen: () => void;
 }
 
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
@@ -83,6 +99,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
     const [pendingRestockId, setPendingRestockId] = useState<string | null>(null);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [lastSeenAt, setLastSeenAt] = useState<string>(() => localStorage.getItem('last_seen_notifications_at') || '2000-01-01T00:00:00.000Z');
 
     const rawBilling = useSubscription(profile?.hospital_id);
 
@@ -151,6 +169,100 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             }
         });
     }, []);
+
+    const fetchNotifications = async () => {
+        if (!profile?.hospital_id) return;
+
+        const notifs: Notification[] = [];
+        const today = new Date().toISOString().split('T')[0];
+        const isHospitalLevel = ['HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(profile.role || '');
+
+        try {
+            // 1. Recent Sales
+            const salesData = await db.list('sales', {
+                filters: [
+                    { column: 'timestamp', operator: 'gte', value: `${today}T00:00:00` }
+                ],
+                sort: { column: 'timestamp', ascending: false },
+                limit: 10,
+                select: '*, clinics(name)'
+            }, !isHospitalLevel && profile.clinic_id ? { clinic_id: profile.clinic_id } : undefined);
+
+            if (salesData) {
+                salesData.forEach((sale: any) => {
+                    const clinicName = Array.isArray(sale.clinics) ? sale.clinics[0]?.name : sale.clinics?.name;
+                    const isConsultation = sale.sale_type === 'CONSULTATION';
+
+                    notifs.push({
+                        id: `sale-${sale.id}`,
+                        type: isConsultation ? 'consultation' : 'pharmacy',
+                        title: isConsultation ? 'Consultation Fee Collected' : 'Pharmacy Sale',
+                        message: `₹${sale.amount?.toLocaleString()} • ${sale.patient_name} • ${sale.doctor_name}`,
+                        timestamp: sale.timestamp,
+                        clinicName: isHospitalLevel ? clinicName : undefined,
+                        icon: isConsultation ? 'stethoscope' : 'medication',
+                        color: isConsultation ? 'blue' : 'emerald',
+                        data: sale
+                    });
+                });
+            }
+
+            // 2. Aggregated Low Stock
+            const clinicInventory = isHospitalLevel
+                ? inventory
+                : inventory.filter(i => i.clinic_id === profile.clinic_id);
+
+            const aggregatedInventory = new Map();
+            clinicInventory.forEach(item => {
+                const key = `${item.item_name}-${item.clinic_id}`;
+                if (!aggregatedInventory.has(key)) {
+                    aggregatedInventory.set(key, { ...item, total_quantity: 0 });
+                }
+                const record = aggregatedInventory.get(key);
+                record.total_quantity += (item.quantity || 0);
+            });
+
+            const lowStockItems = Array.from(aggregatedInventory.values()).filter((i: any) =>
+                i.total_quantity < (i.threshold || 10)
+            );
+
+            lowStockItems.forEach((item: any) => {
+                const clinic = clinics.find(c => c.id === item.clinic_id);
+                notifs.push({
+                    id: `stock-${item.item_name}-${item.clinic_id}`,
+                    type: 'low_stock',
+                    title: 'Low Stock Alert',
+                    message: `${item.item_name} \u2014 only ${item.total_quantity} units left`,
+                    timestamp: item.updated_at || new Date().toISOString(),
+                    clinicName: isHospitalLevel ? clinic?.name : undefined,
+                    icon: 'warning',
+                    color: 'orange',
+                    data: item
+                });
+            });
+
+            notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            setNotifications(notifs);
+        } catch (e) {
+            console.error('Error fetching context notifications:', e);
+        }
+    };
+
+    useEffect(() => {
+        if (!loading && profile) {
+            fetchNotifications();
+        }
+    }, [inventory, profile, loading]);
+
+    const markNotificationsAsSeen = () => {
+        const now = new Date().toISOString();
+        setLastSeenAt(now);
+        localStorage.setItem('last_seen_notifications_at', now);
+    };
+
+    const unseenCount = notifications.filter(n =>
+        new Date(n.timestamp).getTime() > new Date(lastSeenAt).getTime()
+    ).length;
 
     // Monitoring inventory for low stock notifications
     useEffect(() => {
@@ -348,7 +460,10 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             requiresDowngradeResolution,
             activeClinics,
             pendingRestockId,
-            setPendingRestockId
+            setPendingRestockId,
+            notifications,
+            unseenCount,
+            markNotificationsAsSeen
         }}
         >
             {children}

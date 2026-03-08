@@ -1,103 +1,21 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { dataService as db } from '@/lib/dataService'
-import { useHospital } from '@/context/HospitalContext'
+import { useHospital, Notification as ContextNotification } from '@/context/HospitalContext'
 import { X, Stethoscope, AlertTriangle, User, Clock, MapPin, Tablet } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
-interface Notification {
-    id: string
-    type: 'sale' | 'low_stock' | 'consultation' | 'pharmacy'
-    title: string
-    message: string
-    timestamp: string
-    clinicName?: string
-    icon: string
-    color: string
-    data?: any // RAW record data for detail view
-}
-
 export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolean; onClose: () => void; onNavigate?: (view: string) => void }) {
-    const { profile, inventory, clinics, setPendingRestockId } = useHospital()
-    const [notifications, setNotifications] = useState<Notification[]>([])
-    const [loading, setLoading] = useState(false)
-    const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
+    const { profile, clinics, notifications, setPendingRestockId, markNotificationsAsSeen } = useHospital()
+    const [selectedNotification, setSelectedNotification] = useState<ContextNotification | null>(null)
 
     const role = profile?.role
     const isHospitalLevel = ['HOSPITAL_ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(role || '')
 
     useEffect(() => {
         if (open) {
-            fetchNotifications()
+            markNotificationsAsSeen()
         }
-    }, [open, inventory])
-
-    const fetchNotifications = async () => {
-        setLoading(true)
-        const notifs: Notification[] = []
-        const today = new Date().toISOString().split('T')[0]
-
-        try {
-            // 1. RECENT SALES (today) using abstracted db.list
-            const salesData = await db.list('sales', {
-                filters: [
-                    { column: 'timestamp', operator: 'gte', value: `${today}T00:00:00` }
-                ],
-                sort: { column: 'timestamp', ascending: false },
-                limit: 10,
-                select: '*, clinics(name)'
-            }, !isHospitalLevel && profile?.clinic_id ? { clinic_id: profile.clinic_id } : undefined)
-
-            if (salesData) {
-                salesData.forEach((sale: any) => {
-                    const clinicName = Array.isArray(sale.clinics) ? sale.clinics[0]?.name : sale.clinics?.name
-                    const isConsultation = sale.sale_type === 'CONSULTATION'
-
-                    notifs.push({
-                        id: `sale-${sale.id}`,
-                        type: isConsultation ? 'consultation' : 'pharmacy',
-                        title: isConsultation ? 'Consultation Fee Collected' : 'Pharmacy Sale',
-                        message: `₹${sale.amount?.toLocaleString()} • ${sale.patient_name} • ${sale.doctor_name}`,
-                        timestamp: sale.timestamp,
-                        clinicName: isHospitalLevel ? clinicName : undefined,
-                        icon: isConsultation ? 'stethoscope' : 'medication',
-                        color: isConsultation ? 'blue' : 'emerald',
-                        data: sale
-                    })
-                })
-            }
-
-            // 2. LOW STOCK ALERTS
-            const clinicInventory = isHospitalLevel
-                ? inventory
-                : inventory.filter(i => i.clinic_id === profile?.clinic_id)
-
-            const lowStockItems = clinicInventory.filter(i => i.quantity < (i.threshold || 10))
-
-            lowStockItems.forEach((item: any) => {
-                const clinic = clinics.find(c => c.id === item.clinic_id)
-                notifs.push({
-                    id: `stock-${item.id}`,
-                    type: 'low_stock',
-                    title: 'Low Stock Alert',
-                    message: `${item.item_name} \u2014 only ${item.quantity} units left`,
-                    timestamp: item.updated_at || new Date().toISOString(),
-                    clinicName: isHospitalLevel ? clinic?.name : undefined,
-                    icon: 'warning',
-                    color: 'orange',
-                    data: item
-                })
-            })
-
-        } catch (e) {
-            console.error('Error fetching notifications:', e)
-        } finally {
-            // Sort all by timestamp descending
-            notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            setNotifications(notifs)
-            setLoading(false)
-        }
-    }
+    }, [open])
 
     if (!open) return null
 
@@ -146,13 +64,8 @@ export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolea
                     </button>
                 </div>
 
-                {/* Body */}
                 <div className="flex-1 overflow-y-auto">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    ) : notifications.length === 0 ? (
+                    {notifications.length === 0 ? (
                         <div className="text-center py-12 px-4">
                             <span className="material-symbols-outlined text-4xl text-slate-300">notifications_off</span>
                             <p className="text-sm text-slate-400 mt-2 font-medium">No notifications yet today</p>
@@ -173,7 +86,6 @@ export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolea
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <p className="text-sm font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">{notif.title}</p>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} shrink-0`} />
                                             </div>
                                             <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.message}</p>
                                             <div className="flex items-center justify-between mt-1">
@@ -233,6 +145,7 @@ export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolea
                             </div>
                             <div>
                                 <DialogTitle className="text-xl font-bold text-slate-900">{selectedNotification.title}</DialogTitle>
+                                <p className="sr-only">Detailed information about this notification and related actions</p>
                                 <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">{timeAgo(selectedNotification.timestamp)}</p>
                             </div>
                         </div>
@@ -266,7 +179,7 @@ export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolea
                                         onClick={() => {
                                             if (selectedNotification.data?.id) {
                                                 setPendingRestockId(selectedNotification.data.id);
-                                                if (onNavigate) onNavigate('inventory');
+                                                if (onNavigate) onNavigate('inventory-dashboard');
                                                 onClose();
                                             }
                                         }}

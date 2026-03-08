@@ -27,10 +27,29 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const { inventory, hospital, clinics, profile, billing, updateClinicProfile } = useHospital()
 
     // Derived state from context
-    const lowStock = inventory.filter(i => {
-        const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-        return i.quantity < threshold;
-    })
+    const aggregatedInventory = useMemo(() => {
+        const groups = new Map();
+        inventory.forEach(item => {
+            const name = item.item_name?.trim();
+            const clinicId = item.clinic_id;
+            if (!name || !clinicId) return;
+
+            const key = `${name}-${clinicId}`;
+            if (!groups.has(key)) {
+                groups.set(key, { ...item, total_quantity: 0 });
+            }
+            const record = groups.get(key);
+            record.total_quantity += (item.quantity || 0);
+        });
+        return Array.from(groups.values());
+    }, [inventory]);
+
+    const lowStock = useMemo(() => {
+        return aggregatedInventory.filter((i: any) => {
+            const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+            return i.total_quantity < threshold;
+        });
+    }, [aggregatedInventory, hospital]);
 
     const [isRegisterOpen, setIsRegisterOpen] = useState(false)
     const [registerLoading, setRegisterLoading] = useState(false)
@@ -455,17 +474,17 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                 <div className="space-y-3">
                                     <h4 className="text-xs font-extrabold text-red-600 uppercase tracking-widest pl-1">Low Stock Hazards</h4>
                                     {lowStock.map(item => (
-                                        <div key={item.id} className="flex justify-between items-center p-3 bg-red-50/50 rounded-xl border border-red-100 group">
+                                        <div key={'alert-' + item.id} className="flex justify-between items-center p-3 bg-red-50/50 rounded-xl border border-red-100 group">
                                             <div>
                                                 <p className="font-bold text-slate-900">{item.item_name}</p>
-                                                <p className="text-[10px] text-slate-500 font-bold uppercase">{item.clinic_name}</p>
+                                                <p className="text-[10px] text-slate-500 font-bold uppercase">{clinics.find(c => c.id === item.clinic_id)?.name || 'Unknown'}</p>
                                             </div>
                                             <div className="text-right">
                                                 <div className="flex items-center gap-1.5 justify-end">
                                                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                                    <p className="font-bold text-red-600 font-mono text-lg">{item.quantity}</p>
+                                                    <p className="font-bold text-red-600 font-mono text-lg">{(item as any).total_quantity}</p>
                                                 </div>
-                                                <p className="text-[10px] text-red-400 font-medium">Threshold: {item.threshold}</p>
+                                                <p className="text-[10px] text-red-400 font-medium">Threshold: {item.threshold || hospital?.settings?.global_low_stock_threshold || 10}</p>
                                             </div>
                                         </div>
                                     ))}
