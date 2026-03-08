@@ -228,30 +228,15 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                 clinic_name: clinicName,
                 clinic_address: location,
                 staff_user_id: newUser.id,
-                staff_name: staffName
+                staff_name: staffName,
+                p_hospital_id: profile?.hospital_id
             }
 
-            await db.callRpc('admin_create_clinic_and_staff', rpcParams);
+            const newClinicId = await db.callRpc('admin_create_clinic_and_staff', rpcParams);
 
-            // 3. Fetch the new Clinic ID
-            const clinics = await db.list('clinics', {
-                filters: [{ column: 'name', operator: '==', value: clinicName }],
-                sort: { column: 'created_at', ascending: false },
-                limit: 1
-            });
-
-            if (!clinics[0]) {
+            if (!newClinicId) {
                 throw new Error("Clinic created, but ID retrieval failed.")
             }
-
-            const newClinicId = clinics[0].id;
-
-            // 4. Force Link & Role Update
-            await db.update('profiles', newUser.id, {
-                role: 'CLINIC_ADMIN',
-                clinic_id: newClinicId,
-                hospital_id: profile?.hospital_id
-            });
 
             toast({
                 title: '✅ Clinic Registered Systematically',
