@@ -25,7 +25,7 @@ export function DowngradeResolutionModal({ isOpen }: DowngradeResolutionModalPro
     const activeCount = activeClinics.length
     const excessCount = activeCount - limit
 
-    if (excessCount <= 0) return null
+    if (limit === -1 || excessCount <= 0) return null
 
     const handleTogglePause = (clinicId: string) => {
         setSelectedToPause(prev =>
