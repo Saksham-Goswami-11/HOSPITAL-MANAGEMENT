@@ -10,6 +10,7 @@ import { useHospital } from '@/context/HospitalContext'
 import {
     PieChart, Pie, Cell, Tooltip, ResponsiveContainer
 } from 'recharts'
+import { getStartOfTodayIST } from '@/lib/utils'
 import {
     Select,
     SelectContent,
@@ -81,7 +82,8 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
 
                 const now = new Date();
                 if (dateFilter === 'today') {
-                    analyticsFilters.push({ field: 'timestamp', operator: '>=', value: now.toISOString().split('T')[0] });
+                    const startOfToday = getStartOfTodayIST();
+                    analyticsFilters.push({ field: 'timestamp', operator: '>=', value: startOfToday });
                 } else if (dateFilter === 'week') {
                     const weekAgo = new Date(now.setDate(now.getDate() - 7));
                     analyticsFilters.push({ field: 'timestamp', operator: '>=', value: weekAgo.toISOString() });

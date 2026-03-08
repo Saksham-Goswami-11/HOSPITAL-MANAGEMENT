@@ -4,6 +4,7 @@ import { authService as auth } from '@/lib/authService';
 import { dataService as db } from '@/lib/dataService';
 import { useSubscription, SubscriptionContextValue } from '@/hooks/useSubscription';
 import { showNotification } from '@/lib/notifications';
+import { getStartOfTodayIST } from '@/lib/utils';
 
 // Define Types
 type Profile = {
@@ -304,7 +305,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
         // Use consistent date handling
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const startOfToday = getStartOfTodayIST();
         const thirtyDaysFromNow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30).toISOString().split('T')[0];
 
         try {

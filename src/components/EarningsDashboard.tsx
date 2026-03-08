@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { dataService as db } from '@/lib/dataService';
+import { getStartOfTodayIST } from '@/lib/utils';
 import { useHospital } from '@/context/HospitalContext';
 import { Loader2, TrendingUp, Download, Building2, Stethoscope, Pill, Search, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/basic';
@@ -99,8 +100,8 @@ export function EarningsDashboard() {
 
             const now = new Date();
             if (dateRange === 'today') {
-                const today = now.toISOString().split('T')[0];
-                filters.push({ column: 'timestamp', operator: 'gte', value: `${today}T00:00:00` });
+                const startOfToday = getStartOfTodayIST();
+                filters.push({ column: 'timestamp', operator: 'gte', value: startOfToday });
             } else if (dateRange === 'week') {
                 const weekAgo = new Date(now.setDate(now.getDate() - 7)).toISOString();
                 filters.push({ column: 'timestamp', operator: 'gte', value: weekAgo });

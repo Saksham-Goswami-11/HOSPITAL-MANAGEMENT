@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import { dataService as db } from '@/lib/dataService'
+import { getStartOfTodayIST } from '@/lib/utils'
 import { useHospital } from '@/context/HospitalContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
@@ -89,8 +90,7 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                 if (clinic) setClinicData(clinic)
             }
 
-            const today = new Date()
-            const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+            const startOfDay = getStartOfTodayIST()
 
             const rangeDays = dateRange === 'week' ? 7 : 30
             const startDate = new Date()
