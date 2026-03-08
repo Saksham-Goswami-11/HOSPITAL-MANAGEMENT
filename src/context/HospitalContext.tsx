@@ -87,7 +87,7 @@ interface HospitalContextType {
     markNotificationsAsSeen: () => void;
     revenueSummary: any[];
     expiringItems: any[];
-    fetchDashboardStats: () => Promise<void>;
+    fetchDashboardStats: (hospitalId?: string) => Promise<void>;
 }
 
 const HospitalContext = createContext<HospitalContextType | undefined>(undefined);
@@ -298,31 +298,55 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
         }
     }, [inventory, loading, profile]);
 
-    const fetchDashboardStats = async () => {
-        if (!profile?.hospital_id) return;
+    const fetchDashboardStats = async (hospitalId?: string) => {
+        const hId = hospitalId || profile?.hospital_id;
+        if (!hId) return;
 
-        const thirtyDaysFromNow = new Date();
-        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-        const today = new Date().toISOString().split('T')[0];
+        // Use consistent date handling
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const thirtyDaysFromNow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30).toISOString().split('T')[0];
 
         try {
-            // 1. Expiring Items
+            // 1. Expiring Items - Using date string instead of ISO string for 'date' column
             const expiryData = await db.list('inventory', {
                 filters: [
-                    { column: 'hospital_id', operator: '==', value: profile.hospital_id },
-                    { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow.toISOString() },
+                    { column: 'hospital_id', operator: '==', value: hId },
+                    { column: 'expiry_date', operator: '<', value: thirtyDaysFromNow },
                     { column: 'quantity', operator: '>', value: 0 }
                 ]
             });
             setExpiringItems(expiryData);
 
-            // 2. Revenue Summary
-            const revData = await db.list('admin_revenue_summary', {
+            // 2. Revenue Summary - Querying sales directly for reliability
+            // The view admin_revenue_summary has internal filters that might fail for some users
+            const todaySales = await db.list('sales', {
                 filters: [
-                    { column: 'revenue_date', operator: '==', value: today }
+                    { column: 'hospital_id', operator: '==', value: hId },
+                    { column: 'timestamp', operator: '>=', value: startOfToday }
                 ]
             });
-            setRevenueSummary(revData);
+
+            // Aggregate sales by clinic to mimic the view structure
+            // View structure: { clinic_id, clinic_name, total_revenue, transaction_count, revenue_date }
+            const aggregated = todaySales.reduce((acc: any, sale: any) => {
+                const clinicId = sale.clinic_id;
+                if (!acc[clinicId]) {
+                    const clinic = clinics.find(c => c.id === clinicId);
+                    acc[clinicId] = {
+                        clinic_id: clinicId,
+                        clinic_name: clinic?.name || 'Unknown Clinic',
+                        total_revenue: 0,
+                        transaction_count: 0,
+                        revenue_date: startOfToday.split('T')[0]
+                    };
+                }
+                acc[clinicId].total_revenue += Number(sale.amount);
+                acc[clinicId].transaction_count += 1;
+                return acc;
+            }, {});
+
+            setRevenueSummary(Object.values(aggregated));
         } catch (err) {
             console.error('Error fetching dashboard stats:', err);
         }
@@ -340,7 +364,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                 // Update notifications
                 fetchNotifications();
                 // Update stats
-                fetchDashboardStats();
+                fetchDashboardStats(profile.hospital_id);
 
                 // Show push notification
                 const isConsultation = newSale.sale_type === 'CONSULTATION';
@@ -358,7 +382,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             db.subscribe('inventory', (item) => {
                 if (item.hospital_id !== profile.hospital_id) return;
                 fetchData(profile.hospital_id);
-                fetchDashboardStats();
+                fetchDashboardStats(profile.hospital_id);
             }, '*'),
 
             // Handle clinic changes
@@ -422,7 +446,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             });
             setInventory(inventoryData);
 
-            await fetchDashboardStats();
+            await fetchDashboardStats(hospitalId);
         } catch (err) {
             console.error("Error fetching data:", err);
         } finally {
