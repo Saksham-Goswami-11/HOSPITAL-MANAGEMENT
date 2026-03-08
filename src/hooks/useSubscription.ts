@@ -264,12 +264,13 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
     const isTestingPlan = plan?.slug === 'testing';
     const isExtendedTestingPlan = plan?.slug === 'extended_testing';
 
-    // During trial, unlock ALL features with generous limits
+    // During loading or trial, unlock ALL features with generous limits to avoid false positives
     const limits = useMemo<PlanLimits | null>(() => {
+        if (loading) return TRIAL_LIMITS;
         if (isInTrial) return TRIAL_LIMITS;
         if (!plan) return DEFAULT_LIMITS;
         return plan.limits || DEFAULT_LIMITS;
-    }, [plan, isInTrial]);
+    }, [plan, isInTrial, loading]);
 
     const daysLeftInTrial = useMemo(() => {
         if (!isInTrial || !subscription?.trial_ends_at) return 0;

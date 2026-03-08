@@ -122,7 +122,12 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     };
 
     const limit = billing.getLimit('clinics_count');
-    const requiresDowngradeResolution = limit !== -1 && activeClinics.length > limit;
+    const isCalculating = loading || billing.loading;
+    const requiresDowngradeResolution =
+        !isCalculating &&
+        !billing.isTrialing &&
+        limit !== -1 &&
+        activeClinics.length > limit;
 
     useEffect(() => {
         auth.onAuthStateChange((user, event) => {
