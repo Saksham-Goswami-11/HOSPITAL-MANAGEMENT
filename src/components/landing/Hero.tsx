@@ -1,8 +1,10 @@
 
 import React from 'react';
 import ReactGA from "react-ga4";
+import { useNavigate } from 'react-router-dom';
 
 const Hero: React.FC = () => {
+  const navigate = useNavigate();
   return (
     <div className="relative bg-white pt-24 pb-16 lg:pt-32 lg:pb-24 overflow-hidden border-b border-slate-100">
       {/* Background patterns */}
@@ -25,10 +27,13 @@ const Hero: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <button
-                onClick={() => ReactGA.event({
-                  category: "Lead Generation",
-                  action: "Clicked Request Demo",
-                })}
+                onClick={() => {
+                  ReactGA.event({
+                    category: "Lead Generation",
+                    action: "Clicked Request Demo",
+                  });
+                  navigate('/register');
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-lg font-bold shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-1 w-full sm:w-auto text-center"
               >
                 Request a Demo

@@ -252,7 +252,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* WELCOME SECTION */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-200/60 pb-8">
-                <div>
+                <div id="welcome-step">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
                             <Building2 className="w-5 h-5" />
@@ -319,7 +319,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                 {/* Revenue Popup */}
                 <Dialog>
                     <DialogTrigger asChild>
-                        <Card className="glass-card border-none overflow-hidden relative group cursor-pointer hover:ring-2 hover:ring-emerald-500/20 transition-all">
+                        <Card id="tour-revenue-card" className="glass-card border-none overflow-hidden relative group cursor-pointer hover:ring-2 hover:ring-emerald-500/20 transition-all">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between pb-2">
                                     <h3 className="text-sm font-medium text-slate-500">Network Revenue (Today)</h3>

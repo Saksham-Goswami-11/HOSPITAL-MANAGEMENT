@@ -4,7 +4,7 @@ import { NotificationsPanel } from '@/components/ui/NotificationsPanel'
 import { TrialBanner, PastDueBanner, ReadOnlyBanner, DowngradeResolutionModal } from '@/components/billing'
 import { requestNotificationPermission } from '@/lib/notifications'
 import { useTour } from '@/context/TourContext'
-import { TOUR_STEPS } from '@/lib/tourSteps'
+import { DASHBOARD_TOUR_STEPS } from '@/tourSteps'
 import { Play } from 'lucide-react'
 
 interface AppLayoutProps {
@@ -17,7 +17,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, onLogout, view, setView, lockNavigation = false }: AppLayoutProps) {
     const { profile: userProfile, hospital, clinics, requiresDowngradeResolution, unseenCount } = useHospital()
-    const { startTour, isTourActive, currentStepIndex, steps } = useTour()
+    const { startTour, currentStepIndex, steps, isTourActive } = useTour()
     const role = userProfile?.role
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
@@ -34,21 +34,23 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
         if (!hasCompletedTour && isDesktop) {
             autoStartAttempted.current = true;
             const timer = setTimeout(() => {
-                startTour(TOUR_STEPS);
+                startTour(DASHBOARD_TOUR_STEPS);
             }, 1000);
             return () => clearTimeout(timer);
         }
     }, [role, view, lockNavigation, startTour]);
 
-    // Orchestrate automatic route switching during the tour
+    // Sync tour steps with app view for internal navigation
     useEffect(() => {
         if (!isTourActive || steps.length === 0) return;
         const currentStep = steps[currentStepIndex];
         if (currentStep && currentStep.route && currentStep.route !== view) {
-            // we use setTimeout to ensure React finishes previous state updates if any
-            setTimeout(() => {
+            // Check if context already navigated the browser route. 
+            // If we are already in /app, we just need to set the local view state.
+            const possibleViews = ['selection', 'staff', 'admin', 'inventory-dashboard', 'setup', 'hospitals', 'audit_logs', 'pos', 'attendance', 'earnings', 'settings', 'billing', 'shift-management'];
+            if (possibleViews.includes(currentStep.route)) {
                 setView(currentStep.route);
-            }, 50);
+            }
         }
     }, [isTourActive, currentStepIndex, steps, setView, view]);
 
@@ -357,7 +359,7 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
 
                     <div className="flex items-center gap-4">
                         <button
-                            onClick={() => startTour(TOUR_STEPS)}
+                            onClick={() => startTour(DASHBOARD_TOUR_STEPS)}
                             className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100/50 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
                         >
                             <Play className="w-3.5 h-3.5" />

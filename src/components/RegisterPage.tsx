@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authService as auth } from '@/lib/authService';
 import { Button, Input, PasswordInput, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/basic';
-import { UserPlus, Mail, Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Mail, Lock, Loader2, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 export function RegisterPage() {
@@ -79,6 +79,14 @@ export function RegisterPage() {
             {/* Decorative Background */}
             <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-100 rounded-full blur-[120px] opacity-40 pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-violet-100 rounded-full blur-[120px] opacity-40 pointer-events-none" />
+
+            <button
+                onClick={() => navigate('/')}
+                className="absolute top-6 left-6 flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors z-10"
+            >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+            </button>
 
             <Card className="w-full max-w-lg glass-card shadow-2xl border-white/50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-500">
                 <CardHeader className="space-y-4 pt-8 text-center pb-2">

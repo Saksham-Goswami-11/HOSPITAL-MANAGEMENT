@@ -370,19 +370,19 @@ function AppRouter() {
 function Main() {
     return (
         <Router>
-            <AppRouter />
+            <TourProvider>
+                <ProductTour />
+                <AppRouter />
+            </TourProvider>
         </Router>
     );
 }
 
 function App() {
     return (
-        <TourProvider>
-            <ProductTour />
-            <HospitalProvider>
-                <Main />
-            </HospitalProvider>
-        </TourProvider>
+        <HospitalProvider>
+            <Main />
+        </HospitalProvider>
     )
 }
 

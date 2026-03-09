@@ -41,7 +41,7 @@ export const ProductTour: React.FC = () => {
                 timeoutId = setTimeout(() => {
                     const rect = element.getBoundingClientRect();
                     setTargetRect(rect);
-                }, 500);
+                }, 200);
             } else if (retryCount < maxRetries) {
                 retryCount++;
                 timeoutId = setTimeout(findElementAndSetRect, 100);
@@ -75,46 +75,66 @@ export const ProductTour: React.FC = () => {
         const spotlightBuffer = 15;
         const dialogWidth = 450;
         const dialogHeight = 250;
+        const sidebarWidth = 260; // Approximate sidebar width
 
-        // Determine best position: Right, Left, Bottom, Top
-        const spaceRight = windowSize.width - (targetRect.right + spotlightBuffer + padding);
-        const spaceLeft = targetRect.left - spotlightBuffer - padding;
-        const spaceBottom = windowSize.height - (targetRect.bottom + spotlightBuffer + padding);
-        const spaceTop = targetRect.top - spotlightBuffer - padding;
+        // Determine if target is in the sidebar
+        const isSidebarItem = currentStep.targetId.startsWith('tour-dashboard') ||
+            currentStep.targetId.startsWith('tour-inventory') ||
+            currentStep.targetId.startsWith('tour-staff') ||
+            currentStep.targetId.startsWith('tour-shifts') ||
+            currentStep.targetId.startsWith('tour-earnings') ||
+            currentStep.targetId.startsWith('tour-billing') ||
+            currentStep.targetId.startsWith('tour-settings') ||
+            currentStep.targetId.startsWith('tour-hospitals');
 
-        if (spaceRight >= dialogWidth) {
-            // Place Right
+        // Target center Y
+        const targetCenterY = targetRect.top + targetRect.height / 2;
+
+        if (isSidebarItem) {
+            // Sidebar items: Force to the Right with extra margin
             dialogStyle = {
-                top: Math.max(padding, Math.min(targetRect.top, windowSize.height - dialogHeight - padding)),
-                left: targetRect.right + spotlightBuffer + padding,
-            };
-        } else if (spaceLeft >= dialogWidth) {
-            // Place Left
-            dialogStyle = {
-                top: Math.max(padding, Math.min(targetRect.top, windowSize.height - dialogHeight - padding)),
-                left: targetRect.left - dialogWidth - spotlightBuffer - padding,
-            };
-        } else if (spaceBottom >= dialogHeight) {
-            // Place Bottom
-            dialogStyle = {
-                top: targetRect.bottom + spotlightBuffer + padding,
-                left: '50%',
-                transform: 'translateX(-50%)',
-            };
-        } else if (spaceTop >= dialogHeight) {
-            // Place Top
-            dialogStyle = {
-                top: targetRect.top - dialogHeight - spotlightBuffer - padding,
-                left: '50%',
-                transform: 'translateX(-50%)',
+                top: Math.max(padding, Math.min(targetCenterY - dialogHeight / 2, windowSize.height - dialogHeight - padding)),
+                left: Math.max(sidebarWidth + padding, targetRect.right + spotlightBuffer + padding),
             };
         } else {
-            // Fallback: Bottom of screen (centered)
-            dialogStyle = {
-                bottom: padding,
-                left: '50%',
-                transform: 'translateX(-50%)',
-            };
+            // General elements: Determine best position: Right, Left, Bottom, Top
+            const spaceRight = windowSize.width - (targetRect.right + spotlightBuffer + padding);
+            const spaceLeft = targetRect.left - spotlightBuffer - padding;
+            const spaceBottom = windowSize.height - (targetRect.bottom + spotlightBuffer + padding);
+            const spaceTop = targetRect.top - spotlightBuffer - padding;
+
+            if (spaceRight >= dialogWidth) {
+                // Place Right
+                dialogStyle = {
+                    top: Math.max(padding, Math.min(targetCenterY - dialogHeight / 2, windowSize.height - dialogHeight - padding)),
+                    left: targetRect.right + spotlightBuffer + padding,
+                };
+            } else if (spaceLeft >= dialogWidth) {
+                // Place Left
+                dialogStyle = {
+                    top: Math.max(padding, Math.min(targetCenterY - dialogHeight / 2, windowSize.height - dialogHeight - padding)),
+                    left: targetRect.left - dialogWidth - spotlightBuffer - padding,
+                };
+            } else if (spaceBottom >= dialogHeight) {
+                // Place Bottom
+                dialogStyle = {
+                    top: targetRect.bottom + spotlightBuffer + padding,
+                    left: Math.max(padding, Math.min(targetRect.left + (targetRect.width / 2) - (dialogWidth / 2), windowSize.width - dialogWidth - padding)),
+                };
+            } else if (spaceTop >= dialogHeight) {
+                // Place Top
+                dialogStyle = {
+                    top: targetRect.top - dialogHeight - spotlightBuffer - padding,
+                    left: Math.max(padding, Math.min(targetRect.left + (targetRect.width / 2) - (dialogWidth / 2), windowSize.width - dialogWidth - padding)),
+                };
+            } else {
+                // Fallback: Bottom of screen (centered)
+                dialogStyle = {
+                    bottom: padding,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                };
+            }
         }
     }
 
@@ -124,7 +144,7 @@ export const ProductTour: React.FC = () => {
                 <div className="fixed inset-0 z-[9999] pointer-events-none overflow-hidden">
                     {/* Overlay mask */}
                     <motion.div
-                        className="absolute inset-0 bg-slate-900/60 transition-all duration-500"
+                        className="absolute inset-0 bg-slate-900/60 transition-all duration-300"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
