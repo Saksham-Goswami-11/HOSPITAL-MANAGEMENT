@@ -3,6 +3,38 @@ import { Calendar, ArrowUpRight, Users, Clock, Lightbulb, Mail, Sparkles, X, Che
 
 const News: React.FC = () => {
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [subEmail, setSubEmail] = useState('');
+  const [subStatus, setSubStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subEmail) return;
+
+    setSubStatus('loading');
+    try {
+      const response = await fetch('https://formsubmit.co/ajax/aarogyanidhi01@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: subEmail,
+          _subject: 'New Collective Subscription',
+          message: `New subscription from Aarogya Nidhi Collective: ${subEmail}`
+        })
+      });
+
+      if (response.ok) {
+        setSubStatus('success');
+        setSubEmail('');
+      } else {
+        setSubStatus('error');
+      }
+    } catch (error) {
+      setSubStatus('error');
+    }
+  };
 
   const articles = [
     {
@@ -123,16 +155,52 @@ const News: React.FC = () => {
 
             <div className="w-full md:w-auto flex-shrink-0">
               <div className="bg-slate-50 p-2 rounded-[2rem] border border-slate-100 w-full max-w-sm shadow-inner">
-                <div className="flex flex-col gap-3">
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    className="w-full px-6 py-4 rounded-2xl border-none focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-900 font-medium shadow-sm transition-all text-center md:text-left"
-                  />
-                  <button className="w-full bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95">
-                    Subscribe
-                  </button>
-                </div>
+                {subStatus === 'success' ? (
+                  <div className="py-8 px-4 text-center animate-scale-in">
+                    <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Welcome to the Collective!</h3>
+                    <p className="text-slate-500 text-sm font-medium">You're now on the list for our latest insights.</p>
+                    <button
+                      onClick={() => setSubStatus('idle')}
+                      className="mt-6 text-blue-600 text-xs font-bold uppercase tracking-widest hover:text-blue-700 transition-colors"
+                    >
+                      Subscribe another email
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubscribe} className="flex flex-col gap-3">
+                    <input
+                      type="email"
+                      value={subEmail}
+                      onChange={(e) => setSubEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      required
+                      className="w-full px-6 py-4 rounded-2xl border-none focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-900 font-medium shadow-sm transition-all text-center md:text-left disabled:opacity-50"
+                      disabled={subStatus === 'loading'}
+                    />
+                    <button
+                      type="submit"
+                      disabled={subStatus === 'loading'}
+                      className="w-full bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {subStatus === 'loading' ? (
+                        <>
+                          <Clock className="w-5 h-5 animate-spin" />
+                          Subscribing...
+                        </>
+                      ) : (
+                        'Subscribe'
+                      )}
+                    </button>
+                    {subStatus === 'error' && (
+                      <p className="text-red-500 text-[10px] text-center font-bold uppercase tracking-widest mt-2">
+                        Something went wrong. Please try again.
+                      </p>
+                    )}
+                  </form>
+                )}
                 <p className="text-[10px] text-slate-400 mt-4 text-center font-bold uppercase tracking-widest italic">
                   Secure / No Spam / Opt-out any time
                 </p>

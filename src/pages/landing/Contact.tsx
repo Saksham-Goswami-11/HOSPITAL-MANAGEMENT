@@ -7,6 +7,8 @@ const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    email: '',
+    phone: '',
     institutionName: '',
     message: ''
   });
@@ -16,7 +18,7 @@ const Contact: React.FC = () => {
     setFormState('loading');
 
     try {
-      const response = await fetch("https://formsubmit.co/ajax/sakshamgoswami0811@gmail.com", {
+      const response = await fetch("https://formsubmit.co/ajax/aarogyanidhi01@gmail.com", {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
@@ -24,6 +26,8 @@ const Contact: React.FC = () => {
         },
         body: JSON.stringify({
           name: `${formData.firstName} ${formData.lastName}`,
+          email: formData.email,
+          phone: formData.phone,
           institution: formData.institutionName,
           message: formData.message,
           _subject: `New Contact Form Submission from ${formData.institutionName}`
@@ -60,7 +64,7 @@ const Contact: React.FC = () => {
           <button
             onClick={() => {
               setFormState('idle');
-              setFormData({ firstName: '', lastName: '', institutionName: '', message: '' });
+              setFormData({ firstName: '', lastName: '', email: '', phone: '', institutionName: '', message: '' });
             }}
             className="text-blue-600 font-bold hover:underline"
           >
@@ -73,134 +77,171 @@ const Contact: React.FC = () => {
 
   return (
     <div className="pt-20 bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 overflow-hidden grid lg:grid-cols-2 border border-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl shadow-slate-200/60 overflow-hidden grid lg:grid-cols-2 border border-slate-100/50">
           {/* Info Side */}
-          <div className="bg-slate-900 p-12 lg:p-16 text-white flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+          <div className="bg-slate-900 p-10 lg:p-20 text-white flex flex-col justify-between relative overflow-hidden group">
+            {/* Premium Decorative Elements */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-[100px] group-hover:bg-blue-600/15 transition-colors duration-700"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-[80px]"></div>
+
             <div className="relative z-10">
-              <h1 className="text-5xl font-bold mb-6 tracking-tight">Let's talk scale.</h1>
-              <p className="text-slate-400 text-lg mb-12 leading-relaxed max-w-sm">
-                Ready to transform your facility? Our implementation specialists are standing by to build your custom roadmap.
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-widest mb-8">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </span>
+                Support & Inquiries
+              </div>
+
+              <h1 className="text-4xl md:text-6xl font-extrabold mb-8 tracking-tight leading-[1.1] bg-gradient-to-br from-white via-white to-slate-400 bg-clip-text text-transparent">
+                Let's simplify your <span className="text-blue-400">operations</span>.
+              </h1>
+              <p className="text-slate-400 text-lg md:text-xl mb-12 leading-relaxed max-w-sm">
+                Ready to transform your clinic? Tell us about your facility and we'll help build your digital roadmap.
               </p>
 
-              <div className="space-y-10">
-                <div className="flex gap-6 group">
-                  <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-                    <Mail className="w-6 h-6" />
+              <div className="space-y-8">
+                <div className="flex gap-6 items-center p-4 rounded-3xl bg-white/5 border border-white/10 hover:border-blue-500/30 hover:bg-white/10 transition-all duration-300 group/item">
+                  <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 group-hover/item:scale-110 transition-transform duration-500">
+                    <Mail className="w-7 h-7" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-lg mb-1">Email us</h4>
-                    <p className="text-slate-400 font-medium">hello@aarogyanidhi.in</p>
+                    <h4 className="font-bold text-lg text-slate-100 mb-0.5">Contact via Email</h4>
+                    <p className="text-blue-400 font-semibold tracking-wide">aarogyanidhi01@gmail.com</p>
                   </div>
                 </div>
-                <div className="flex gap-6 group">
-                  <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-                    <Phone className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg mb-1">Call us</h4>
-                    <p className="text-slate-400 font-medium">+1 (555) 000-0000</p>
-                  </div>
-                </div>
-                <div className="flex gap-6 group">
-                  <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-blue-400 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-                    <MapPin className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg mb-1">Visit us</h4>
-                    <p className="text-slate-400 font-medium leading-relaxed">
-                      123 Innovation Drive, Suite 500<br />
-                      Palo Alto, CA 94301
-                    </p>
+
+                <div className="p-8 rounded-[2rem] bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/10">
+                  <p className="text-slate-300 text-sm leading-relaxed italic">
+                    "Our mission is to empower local clinics with state-of-the-art management tools, making healthcare more accessible and organized for everyone."
+                  </p>
+                  <div className="mt-4 flex items-center gap-3">
+                    <div className="w-8 h-1 bg-blue-500 rounded-full"></div>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Aarogya Nidhi Team</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-16 pt-8 border-t border-white/10 relative z-10">
-              <p className="text-sm text-slate-500 italic">Trusted by over 500+ clinics worldwide for mission-critical operations.</p>
+            <div className="mt-16 pt-8 border-t border-white/5 relative z-10">
+              <div className="flex items-center gap-3 text-slate-500">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                <p className="text-sm font-medium">Committed to clinical data privacy & security</p>
+              </div>
             </div>
           </div>
 
           {/* Form Side */}
-          <div className="p-12 lg:p-16 bg-white">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="space-y-2.5">
-                  <label className="text-sm font-bold text-slate-800 tracking-wide uppercase">First Name</label>
+          <div className="p-10 lg:p-20 bg-white">
+            <div className="mb-12">
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">Send us a message</h3>
+              <p className="text-slate-500">We'll respond to your inquiry within 24 hours.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">First Name</label>
                   <input
                     required
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
                     type="text"
-                    placeholder="John"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-400"
+                    placeholder="e.g. Rahul"
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300"
                   />
                 </div>
-                <div className="space-y-2.5">
-                  <label className="text-sm font-bold text-slate-800 tracking-wide uppercase">Last Name</label>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Last Name</label>
                   <input
                     required
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
                     type="text"
-                    placeholder="Doe"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-400"
+                    placeholder="e.g. Sharma"
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300"
                   />
                 </div>
               </div>
-              <div className="space-y-2.5">
-                <label className="text-sm font-bold text-slate-800 tracking-wide uppercase">Institution Name</label>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Email Address (Optional)</label>
+                  <input
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Phone Number (Optional)</label>
+                  <input
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    type="tel"
+                    placeholder="e.g. +91 00000 00000"
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Institution / Clinic Name</label>
                 <input
                   required
                   name="institutionName"
                   value={formData.institutionName}
                   onChange={handleInputChange}
                   type="text"
-                  placeholder="St. Mary's General Hospital"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-400"
+                  placeholder="name of your medical facility"
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300"
                 />
               </div>
-              <div className="space-y-2.5">
-                <label className="text-sm font-bold text-slate-800 tracking-wide uppercase">Your Message</label>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Detailed Requirements</label>
                 <textarea
                   required
                   name="message"
                   value={formData.message}
                   onChange={handleInputChange}
                   rows={4}
-                  placeholder="Tell us about your requirements..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-400 resize-none"
+                  placeholder="How can we help your facility grow?"
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl p-4 focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 focus:outline-none transition-all placeholder:text-slate-300 resize-none"
                 ></textarea>
               </div>
 
               {formState === 'error' && (
-                <p className="text-red-500 text-sm font-medium animate-pulse">
-                  Something went wrong. Please try again or email us directly.
-                </p>
+                <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 rotate-180" />
+                  Something went wrong. Please try emailing us directly.
+                </div>
               )}
 
               <button
                 disabled={formState === 'loading'}
-                className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-200 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
+                className="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl hover:bg-blue-700 hover:shadow-2xl hover:shadow-blue-500/20 active:scale-[0.99] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
               >
                 {formState === 'loading' ? (
                   <>
                     <Loader2 className="w-6 h-6 animate-spin" />
-                    Sending...
+                    Processing...
                   </>
                 ) : (
                   <>
-                    Deploy Inquiry <Send className="w-5 h-5" />
+                    Send Inquiry <Send className="w-5 h-5" />
                   </>
                 )}
               </button>
 
-              <p className="text-center text-slate-400 text-xs mt-4">
-                By submitting, you agree to our <a href="/#/privacy" className="text-slate-600 hover:underline">Privacy Policy</a>
+              <p className="text-center text-slate-400 text-[10px] md:text-xs pt-4">
+                We value your privacy. By sending this inquiry, you agree to our <a href="/#/privacy" className="text-slate-600 hover:underline font-medium">Privacy Policy</a>
               </p>
             </form>
           </div>

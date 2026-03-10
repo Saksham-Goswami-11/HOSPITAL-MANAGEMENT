@@ -19,13 +19,6 @@ const Privacy: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <h2 className="text-2xl font-bold mb-4">2. HIPAA Compliance</h2>
-              <p className="text-slate-600 leading-relaxed">
-                Our platform is built to exceed HIPAA (Health Insurance Portability and Accountability Act) standards.
-                All Protected Health Information (PHI) is encrypted both at rest and in transit.
-              </p>
-            </div>
 
             <div className="bg-blue-50 p-8 rounded-2xl border border-blue-100">
               <h2 className="text-2xl font-bold text-slate-900 mb-6">1. Data Ownership & Sovereignty</h2>
@@ -36,12 +29,12 @@ const Privacy: React.FC = () => {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold mb-4">3. Security Measures</h2>
+              <h2 className="text-2xl font-bold mb-4">2. Security Measures</h2>
               <ul className="list-disc pl-5 space-y-3 text-slate-600">
                 <li>End-to-end AES-256 encryption</li>
-                <li>SOC 2 Type II certified infrastructure</li>
+                <li>Secure Infrastructure</li>
                 <li>Multi-factor authentication (MFA) required for all clinical access</li>
-                <li>Regular third-party penetration testing</li>
+                <li>Regular internal security audits</li>
               </ul>
             </div>
           </div>

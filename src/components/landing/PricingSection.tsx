@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { dataService as db } from '@/lib/dataService';
@@ -339,7 +338,7 @@ const PricingSection: React.FC = () => {
                     <p className="text-sm text-slate-500">
                         All plans include POS & clinical billing. Prices exclude applicable GST.
                         <br />
-                        Need a custom deployment? <Link to="/login" className="text-primary font-bold hover:underline">Talk to our team</Link>
+                        Need a custom deployment? <Link to="/contact" className="text-primary font-bold hover:underline">Talk to our team</Link>
                     </p>
                 </div>
             </div>

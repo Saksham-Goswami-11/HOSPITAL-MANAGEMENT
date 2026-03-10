@@ -54,24 +54,6 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Compliance Badges */}
-        <div className="border-t border-slate-200 pt-12 pb-8">
-          <div className="flex flex-col sm:flex-row flex-wrap justify-center items-center gap-6 sm:gap-8 md:gap-16 opacity-70 hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-2">
-              <img src="https://img.icons8.com/color/48/caduceus.png" alt="HIPAA" className="w-8 grayscale opacity-60" />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">HIPAA Compliant</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <img src="https://img.icons8.com/ios-filled/50/000000/security-shield-green.png" alt="SOC 2" className="w-8 opacity-60" />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">SOC 2 Type II</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black border-2 border-slate-400 px-2 rounded text-slate-400">ISO</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">27001 Certified</span>
-            </div>
-          </div>
-        </div>
-
         <div className="text-center pt-8 border-t border-slate-200">
           <p className="text-xs text-slate-500">
             &copy; 2026 Aarogya Nidhi. All rights reserved. A Healthcare Solutions Company.
