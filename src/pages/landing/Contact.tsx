@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Send, CheckCircle2, Loader2 } from 'lucide-react';
+import { Mail, Send, CheckCircle2, Loader2 } from 'lucide-react';
 
 const Contact: React.FC = () => {
   const [formState, setFormState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
