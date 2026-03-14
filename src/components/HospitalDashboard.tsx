@@ -48,7 +48,8 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const lowStock = useMemo(() => {
         return aggregatedInventory.filter((i: any) => {
             const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-            return i.total_quantity < threshold;
+            const packsAvailable = i.total_quantity / (i.units_per_pack || 1);
+            return packsAvailable < threshold;
         });
     }, [aggregatedInventory, hospital]);
 

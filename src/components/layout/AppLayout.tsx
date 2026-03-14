@@ -202,6 +202,20 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 onClick={() => setView('billing')}
                                 disabled={lockNavigation}
                             />
+                            <NavItem
+                                icon="shopping_cart_checkout"
+                                label="Procurement"
+                                active={view === 'procurement'}
+                                onClick={() => setView('procurement')}
+                                disabled={lockNavigation}
+                            />
+                            <NavItem
+                                icon="swap_horiz"
+                                label="Medicine Migration"
+                                active={view === 'medicine-migration'}
+                                onClick={() => setView('medicine-migration')}
+                                disabled={lockNavigation}
+                            />
 
 
                         </>

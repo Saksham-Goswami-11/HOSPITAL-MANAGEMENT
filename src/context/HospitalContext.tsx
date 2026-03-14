@@ -37,8 +37,9 @@ type Clinic = {
 type InventoryItem = {
     id: string;
     item_name: string;
-    quantity: number;
-    mrp: number;
+    quantity: number; // This remains total units (tablets)
+    mrp: number; // Price per pack
+    units_per_pack: number; // Number of units in one pack
     threshold: number;
     clinic_id: string;
     hospital_id: string;
@@ -83,6 +84,8 @@ interface HospitalContextType {
     activeClinics: Clinic[];
     pendingRestockId: string | null;
     setPendingRestockId: (id: string | null) => void;
+    pendingPOItem: any | null;
+    setPendingPOItem: (item: any | null) => void;
     notifications: Notification[];
     unseenCount: number;
     markNotificationsAsSeen: () => void;
@@ -103,6 +106,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
     const [pendingRestockId, setPendingRestockId] = useState<string | null>(null);
+    const [pendingPOItem, setPendingPOItem] = useState<any | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [lastSeenAt, setLastSeenAt] = useState<string>(() => localStorage.getItem('last_seen_notifications_at') || '2000-01-01T00:00:00.000Z');
     const [revenueSummary, setRevenueSummary] = useState<any[]>([]);
@@ -228,17 +232,19 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                 record.total_quantity += (item.quantity || 0);
             });
 
+            const globalThreshold = hospital?.settings?.global_low_stock_threshold || 10;
             const lowStockItems = Array.from(aggregatedInventory.values()).filter((i: any) =>
-                i.total_quantity < (i.threshold || 10)
+                (i.total_quantity / (i.units_per_pack || 1)) < (i.threshold || globalThreshold)
             );
 
             lowStockItems.forEach((item: any) => {
                 const clinic = clinics.find(c => c.id === item.clinic_id);
+                const packsAvailable = (item.total_quantity / (item.units_per_pack || 1)).toFixed(1);
                 notifs.push({
                     id: `stock-${item.item_name}-${item.clinic_id}`,
                     type: 'low_stock',
                     title: 'Low Stock Alert',
-                    message: `${item.item_name} \u2014 only ${item.total_quantity} units left`,
+                    message: `${item.item_name} \u2014 only ${packsAvailable} packs left`,
                     timestamp: item.updated_at || new Date().toISOString(),
                     clinicName: isHospitalLevel ? clinic?.name : undefined,
                     icon: 'warning',
@@ -273,9 +279,11 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     // Monitoring inventory for low stock notifications
     useEffect(() => {
         if (!loading && inventory.length > 0 && profile) {
+            const globalThreshold = hospital?.settings?.global_low_stock_threshold || 10;
             const lowStockItems = inventory.filter(item => {
                 const isRelevant = profile.role === 'HOSPITAL_ADMIN' || profile.role === 'ADMIN' || item.clinic_id === profile.clinic_id;
-                return isRelevant && item.quantity < (item.threshold || 10);
+                const packs = item.quantity / (item.units_per_pack || 1);
+                return isRelevant && packs < (item.threshold || globalThreshold);
             });
 
             // Prevent duplicate notifications in the same session by tracking notified item IDs
@@ -284,8 +292,9 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
             lowStockItems.forEach(item => {
                 if (!notifiedIds.has(item.id)) {
+                    const packsAvailable = (item.quantity / (item.units_per_pack || 1)).toFixed(1);
                     showNotification('Low Stock Alert', {
-                        body: `${item.item_name} is running low (${item.quantity} left).`,
+                        body: `${item.item_name} is running low (${packsAvailable} packs left).`,
                         tag: `low-stock-${item.id}`
                     });
                     notifiedIds.add(item.id);
@@ -555,6 +564,8 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             activeClinics,
             pendingRestockId,
             setPendingRestockId,
+            pendingPOItem,
+            setPendingPOItem,
             notifications,
             unseenCount,
             markNotificationsAsSeen,

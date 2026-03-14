@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { StaffPortal } from '@/components/StaffPortal'
+import ProcurementDashboard from '@/components/ProcurementDashboard';
+import { MedicineMigration } from '@/components/MedicineMigration';
 import { SuperAdminDashboard } from "@/components/SuperAdminDashboard";
 import { HospitalDashboard } from "@/components/HospitalDashboard";
 import { ClinicAdminDashboard } from "@/components/ClinicAdminDashboard";
@@ -44,7 +46,7 @@ import { authService } from '@/lib/authService'
 import { dataService } from '@/lib/dataService'
 
 // View types
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management'
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration'
 
 const PageWrapper = ({ children }: { children: React.ReactNode }) => (
     <motion.div
@@ -60,6 +62,7 @@ const PageWrapper = ({ children }: { children: React.ReactNode }) => (
 
 function AppContent() {
     const { session, profile, loading } = useHospital();
+    const isHospitalAdmin = profile?.role === 'HOSPITAL_ADMIN' || profile?.role === 'ADMIN';
     const [view, setView] = useState<View>(() => {
         const savedView = localStorage.getItem('lastActiveView') as View
         return savedView || 'selection'
@@ -183,6 +186,12 @@ function AppContent() {
                         <POSDashboard />
                     )}
 
+                    {/* PROCUREMENT DASHBOARD */}
+                    {view === 'procurement' && (['HOSPITAL_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'OWNER'].includes(profile?.role || '')) && (
+                        <ProcurementDashboard />
+                    )}
+
+
                     {/* ATTENDANCE DASHBOARD */}
                     {view === 'attendance' && selectedClinicId && (
                         <ClinicAttendance clinicId={selectedClinicId} onNavigate={(v) => setView(v as View)} />
@@ -264,7 +273,7 @@ function AppContent() {
 
                     {/* Inventory Dashboard */}
                     {view === 'inventory-dashboard' && (
-                        <InventoryDashboard />
+                        <InventoryDashboard onNavigate={setView} />
                     )}
 
                     {/* HOSPITALS REGISTRY & DETAILS */}
@@ -284,6 +293,10 @@ function AppContent() {
                     {view === 'audit_logs' && (
                         <AuditLogs />
                     )}
+
+                {view === 'medicine-migration' && isHospitalAdmin && (
+                    <MedicineMigration onBack={() => setView('inventory-dashboard')} />
+                )}
 
                     {view === 'billing' && (
                         <div className="max-w-4xl mx-auto">

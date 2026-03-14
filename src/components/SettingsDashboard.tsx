@@ -307,12 +307,12 @@ export function SettingsDashboard() {
                                                 </div>
                                                 <div>
                                                     <h4 className="font-semibold text-sm text-slate-900">Inventory Alert Policy</h4>
-                                                    <p className="text-xs text-slate-500">Master threshold for low-stock warnings across all clinics.</p>
+                                                    <p className="text-xs text-slate-500">Master threshold for low-stock warnings (in packs) across all clinics.</p>
                                                 </div>
                                             </div>
 
                                             <div className="space-y-2">
-                                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Global Low Stock Threshold</Label>
+                                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Global Low Stock Threshold (Packs)</Label>
                                                 <div className="flex items-center gap-3">
                                                     <Input
                                                         type="number"
@@ -320,7 +320,7 @@ export function SettingsDashboard() {
                                                         value={hospitalSettings?.global_low_stock_threshold ?? 20}
                                                         onChange={(e) => setHospitalSettings({ ...hospitalSettings, global_low_stock_threshold: parseInt(e.target.value) })}
                                                     />
-                                                    <span className="text-sm text-slate-500 font-medium">Items remaining before warning</span>
+                                                    <span className="text-sm text-slate-500 font-medium">Packs remaining before warning</span>
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 mt-2 italic">
                                                     *Individual item overrides in clinic inventory will prioritize over this global value.

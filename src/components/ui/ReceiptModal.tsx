@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/basic'
 import { X, Printer } from 'lucide-react'
 import { useHospital } from '@/context/HospitalContext'
 
+import { ReceiptBranding } from './ReceiptBranding'
+
 // Receipt Modal — rendered via Portal to escape Radix Dialog focus trap
 export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, onClose: () => void, sale: any, items: any[] }) {
     const { hospital, managedClinic, clinics, profile } = useHospital()
@@ -90,10 +92,29 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
                     )}
 
                     {/* TOTALS */}
-                    <div className="flex justify-between items-center text-lg font-bold pt-2">
-                        <span>Total Paid</span>
-                        <span>₹{Number(sale?.amount || 0).toFixed(2)}</span>
-                    </div>
+                    {parseFloat(sale?.discount_percentage || '0') > 0 ? (
+                        <div className="pt-2 mt-2 border-t border-slate-100 space-y-1">
+                            <div className="flex justify-between items-center text-sm font-medium text-slate-500">
+                                <span>Subtotal</span>
+                                <span>₹{Number(sale?.subtotal || sale?.amount || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm font-medium text-red-500">
+                                <span>Discount ({sale?.discount_percentage}%)</span>
+                                <span>- ₹{(Number(sale?.subtotal || sale?.amount || 0) - Number(sale?.amount || 0)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-lg font-bold pt-2 border-t border-slate-200 text-slate-900 mt-2 mt-2">
+                                <span>Total Paid</span>
+                                <span>₹{Number(sale?.amount || 0).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex justify-between items-center text-lg font-bold pt-2 text-slate-900">
+                            <span>Total Paid</span>
+                            <span>₹{Number(sale?.amount || 0).toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    <ReceiptBranding />
                 </div>
 
                 {/* FOOTER (Hidden in Print) */}

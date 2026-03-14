@@ -13,6 +13,7 @@ export interface DataService {
     createMany: (table: string, data: any[]) => Promise<any[]>;
     update: (table: string, id: string, data: any) => Promise<any>;
     remove: (table: string, id: string) => Promise<void>;
+    removeByFilters: (table: string, filters: any) => Promise<void>;
     callRpc: (name: string, params: any) => Promise<any>;
     invokeFunction: (name: string, options?: any) => Promise<any>;
     count: (table: string, filters?: any) => Promise<number>;
@@ -104,6 +105,19 @@ class SupabaseService implements DataService {
     }
     async remove(table: string, id: string) {
         const { error } = await supabase.from(table).delete().eq('id', id);
+        if (error) throw error;
+    }
+    async removeByFilters(table: string, filtersInput: any) {
+        let q = supabase.from(table).delete();
+        const filters = normalizeFilters(filtersInput?.filters || filtersInput);
+        if (filters.length > 0) {
+            filters.forEach(f => {
+                const op = f.operator || 'eq';
+                if (op === '==' || op === 'eq') q = (q as any).eq(f.column, f.value);
+                else if (op === 'in') q = (q as any).in(f.column, f.value);
+            });
+        }
+        const { error } = await q;
         if (error) throw error;
     }
     async callRpc(name: string, params: any) {

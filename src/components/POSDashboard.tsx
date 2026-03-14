@@ -25,13 +25,27 @@ export function POSDashboard() {
 
     // Consultation State
     const [consultationFee, setConsultationFee] = useState('');
+    const [consultationDiscountPercent, setConsultationDiscountPercent] = useState('');
+    const [consultationDiscountedFee, setConsultationDiscountedFee] = useState('');
 
     // Pharmacy Cart State
-    const [cart, setCart] = useState<{ id: string, name: string, price: number, quantity: number, maxQty: number }[]>([]);
+    const [cart, setCart] = useState<{ 
+        id: string, 
+        name: string, 
+        price: number, 
+        quantity: number, 
+        maxQty: number,
+        unitsPerPack: number,
+        isLoose: boolean,
+        totalTablets: number
+    }[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [pharmacyDiscountPercent, setPharmacyDiscountPercent] = useState('');
+    const [pharmacyDiscountedTotal, setPharmacyDiscountedTotal] = useState('');
 
     // Qty Prompt State
     const [promptItem, setPromptItem] = useState<any>(null);
+    const [sellType, setSellType] = useState<'pack' | 'unit'>('pack');
     const [qtyInput, setQtyInput] = useState('1');
 
     // Receipt State
@@ -89,6 +103,9 @@ export function POSDashboard() {
             const amount = parseFloat(consultationFee);
             if (isNaN(amount) || amount <= 0) throw new Error("Invalid Consultation Fee");
 
+            const discountPercent = parseFloat(consultationDiscountPercent) || 0;
+            const finalAmount = consultationDiscountedFee !== '' ? parseFloat(consultationDiscountedFee) : amount;
+
             const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
@@ -96,20 +113,31 @@ export function POSDashboard() {
                 p_doctor_name: doctorName,
                 p_sale_type: 'CONSULTATION',
                 p_payment_mode: paymentMode,
-                p_amount: amount,
+                p_amount: finalAmount,
+                p_subtotal: amount,
+                p_discount_percentage: discountPercent,
                 p_items: [] // No inventory items for consultation
             });
 
             toast({ title: 'Success', description: 'Consultation Recorded.', className: 'bg-green-50 border-green-200 text-green-900' });
 
             // Show receipt
-            const recordedSale = { id: saleId, patient_name: patientName, doctor_name: doctorName, amount: amount, payment_mode: paymentMode, sale_type: 'CONSULTATION' };
+            const recordedSale = { 
+                id: saleId, 
+                patient_name: patientName, 
+                doctor_name: doctorName, 
+                amount: finalAmount, 
+                subtotal: amount,
+                discount_percentage: discountPercent,
+                payment_mode: paymentMode, 
+                sale_type: 'CONSULTATION' 
+            };
             setLastSaleData(recordedSale);
             setLastSaleItems([{ item_name: 'Consultation Fee', quantity: 1, price: amount }]);
             setIsReceiptOpen(true);
 
             // Reset
-            setPatientName(''); setDoctorName(''); setConsultationFee('');
+            setPatientName(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -118,18 +146,41 @@ export function POSDashboard() {
         }
     };
 
+    useEffect(() => {
+        if (!consultationFee) {
+            setConsultationDiscountedFee('');
+            return;
+        }
+        if (!consultationDiscountPercent) {
+            setConsultationDiscountedFee(consultationFee);
+        } else {
+            const amount = parseFloat(consultationFee);
+            const pct = parseFloat(consultationDiscountPercent) || 0;
+            const discounted = amount - (amount * (pct / 100));
+            // Only update if it is different to prevent cycles if user is manually typing in the discounted total
+            if (Math.abs(parseFloat(consultationDiscountedFee || '0') - discounted) > 0.01) {
+                 setConsultationDiscountedFee(discounted.toFixed(2));
+            }
+        }
+    }, [consultationFee, consultationDiscountPercent]);
+
     const addToCart = (item: any) => {
         setCart(current => {
             const existing = current.find(c => c.id === item.id);
             if (existing) {
-                if (existing.quantity >= item.quantity) {
+                const newQty = existing.quantity + 1;
+                const newTotalTablets = existing.isLoose ? newQty : newQty * existing.unitsPerPack;
+                
+                if (newTotalTablets > item.quantity) {
                     toast({ description: "Not enough stock", variant: "destructive", duration: 2000 });
                     return current;
                 }
-                return current.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
+                
+                return current.map(c => c.id === item.id ? { ...c, quantity: newQty, totalTablets: newTotalTablets } : c);
             }
 
             setPromptItem(item);
+            setSellType('pack');
             setQtyInput('1');
             return current;
         });
@@ -145,23 +196,48 @@ export function POSDashboard() {
             return;
         }
 
-        if (qty > promptItem.quantity) {
+        const upp = promptItem.units_per_pack || 1;
+        const totalTablets = sellType === 'pack' ? qty * upp : qty;
+
+        if (totalTablets > promptItem.quantity) {
             toast({ description: "Not enough stock available", variant: "destructive", duration: 2000 });
             return;
         }
 
-        const price = parseFloat(promptItem.mrp) || 0;
+        const pricePerUnit = sellType === 'pack' ? (promptItem.mrp || 0) : (promptItem.mrp || 0) / upp;
 
-        setCart(current => [
-            ...current,
-            {
-                id: promptItem.id,
-                name: promptItem.item_name,
-                price: price,
-                quantity: qty,
-                maxQty: promptItem.quantity
+        setCart(current => {
+            const existingIndex = current.findIndex(c => c.id === promptItem.id && c.isLoose === (sellType === 'unit'));
+            
+            if (existingIndex > -1) {
+                const newCart = [...current];
+                const existing = newCart[existingIndex];
+                const newQty = existing.quantity + qty;
+                const newTotalTablets = existing.isLoose ? newQty : newQty * upp;
+
+                if (newTotalTablets > promptItem.quantity) {
+                    toast({ description: "Total quantity exceeds available stock", variant: "destructive" });
+                    return current;
+                }
+
+                newCart[existingIndex] = { ...existing, quantity: newQty, totalTablets: newTotalTablets };
+                return newCart;
             }
-        ]);
+
+            return [
+                ...current,
+                {
+                    id: promptItem.id,
+                    name: promptItem.item_name,
+                    price: pricePerUnit,
+                    quantity: qty,
+                    maxQty: promptItem.quantity,
+                    unitsPerPack: upp,
+                    isLoose: sellType === 'unit',
+                    totalTablets: totalTablets
+                }
+            ];
+        });
 
         setPromptItem(null);
         setQtyInput('1');
@@ -174,17 +250,32 @@ export function POSDashboard() {
         }
         setCart(cart.map(c => {
             if (c.id === id) {
-                if (newQty > c.maxQty) {
+                const newTotalTablets = c.isLoose ? newQty : newQty * c.unitsPerPack;
+                if (newTotalTablets > c.maxQty) {
                     toast({ description: "Max stock reached", variant: "destructive", duration: 2000 });
                     return c;
                 }
-                return { ...c, quantity: newQty };
+                return { ...c, quantity: newQty, totalTablets: newTotalTablets };
             }
             return c;
         }));
     };
 
     const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    // Sync Pharmacy Discount with Cart Total
+    useEffect(() => {
+        if (!pharmacyDiscountPercent) {
+            setPharmacyDiscountedTotal(cartTotal.toFixed(2));
+        } else {
+            const pct = parseFloat(pharmacyDiscountPercent) || 0;
+            const discounted = cartTotal - (cartTotal * (pct / 100));
+            // Only update if it is different to prevent cycles if user is manually typing in the discounted total
+            if (Math.abs(parseFloat(pharmacyDiscountedTotal || '0') - discounted) > 0.01) {
+                 setPharmacyDiscountedTotal(discounted.toFixed(2));
+            }
+        }
+    }, [cartTotal, pharmacyDiscountPercent]);
 
     const handleProcessPharmacy = async () => {
         if (!selectedClinicId || cart.length === 0 || !patientName || !doctorName) {
@@ -201,9 +292,18 @@ export function POSDashboard() {
             return;
         }
 
-        setIsProcessing(true);
+            setIsProcessing(true);
         try {
-            const saleItems = cart.map(c => ({ inventory_id: c.id, quantity: c.quantity, price: c.price }));
+            const discountPercent = parseFloat(pharmacyDiscountPercent) || 0;
+            const finalAmount = pharmacyDiscountedTotal !== '' ? parseFloat(pharmacyDiscountedTotal) : cartTotal;
+            
+            const saleItems = cart.map(c => ({ 
+                inventory_id: c.id, 
+                quantity: c.totalTablets, 
+                price: c.price,
+                is_loose_sale: c.isLoose,
+                units_sold: c.quantity
+            }));
 
             const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
@@ -212,18 +312,33 @@ export function POSDashboard() {
                 p_doctor_name: doctorName,
                 p_sale_type: 'PHARMACY',
                 p_payment_mode: paymentMode,
-                p_amount: cartTotal,
+                p_amount: finalAmount,
+                p_subtotal: cartTotal,
+                p_discount_percentage: discountPercent,
                 p_items: saleItems
             });
 
             toast({ title: 'Success', description: 'Pharmacy Checkout Complete.', className: 'bg-green-50 border-green-200 text-green-900' });
 
-            const recordedSale = { id: saleId, patient_name: patientName, doctor_name: doctorName, amount: cartTotal, payment_mode: paymentMode, sale_type: 'PHARMACY' };
+            const recordedSale = { 
+                id: saleId, 
+                patient_name: patientName, 
+                doctor_name: doctorName, 
+                amount: finalAmount, 
+                subtotal: cartTotal,
+                discount_percentage: discountPercent,
+                payment_mode: paymentMode, 
+                sale_type: 'PHARMACY' 
+            };
             setLastSaleData(recordedSale);
-            setLastSaleItems(cart.map(c => ({ item_name: c.name, quantity: c.quantity, price: c.price })));
+            setLastSaleItems(cart.map(c => ({ 
+                item_name: c.name + (c.isLoose ? ' (Loose)' : ' (Pack)'), 
+                quantity: c.quantity, 
+                price: c.price 
+            })));
             setIsReceiptOpen(true);
 
-            setCart([]); setPatientName(''); setDoctorName('');
+            setCart([]); setPatientName(''); setDoctorName(''); setPharmacyDiscountPercent(''); setPharmacyDiscountedTotal('');
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -393,6 +508,50 @@ export function POSDashboard() {
                                                     <Input type="number" required value={consultationFee} onChange={e => setConsultationFee(e.target.value)} placeholder="500.00" className="pl-10 h-10 sm:h-11 font-bold text-base sm:text-lg bg-slate-50 border-slate-200" />
                                                 </div>
                                             </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1.5 sm:space-y-2">
+                                                    <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Discount (%)</Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={consultationDiscountPercent}
+                                                            onChange={e => setConsultationDiscountPercent(e.target.value)}
+                                                            placeholder="0"
+                                                            className="pr-6 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm"
+                                                        />
+                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[14px] font-bold">%</span>
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1.5 sm:space-y-2">
+                                                    <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Final Price (₹)</Label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[14px] font-bold">₹</span>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            value={consultationDiscountedFee}
+                                                            onChange={e => {
+                                                                setConsultationDiscountedFee(e.target.value);
+                                                                const originalAmount = parseFloat(consultationFee);
+                                                                const discounted = parseFloat(e.target.value);
+                                                                if (originalAmount > 0 && discounted >= 0 && discounted <= originalAmount) {
+                                                                    const pct = ((originalAmount - discounted) / originalAmount) * 100;
+                                                                    if (Math.abs(parseFloat(consultationDiscountPercent || '0') - pct) > 0.1) {
+                                                                        setConsultationDiscountPercent(pct.toFixed(2));
+                                                                    }
+                                                                }
+                                                            }}
+                                                            placeholder="0.00"
+                                                            disabled={!consultationFee}
+                                                            className="pl-8 h-10 sm:h-11 font-bold text-slate-700 bg-slate-50 border-slate-200 text-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                             <div className="space-y-1.5 sm:space-y-2">
                                                 <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Payment Mode</Label>
                                                 <Select value={paymentMode} onValueChange={setPaymentMode}>
@@ -463,13 +622,13 @@ export function POSDashboard() {
                                     <div key={c.id} className="flex justify-between items-center group gap-2">
                                         <div className="flex-1 min-w-0 pr-2">
                                             <h4 className="text-xs sm:text-sm font-bold text-slate-800 leading-tight mb-0.5 sm:mb-1 truncate">{c.name}</h4>
-                                            <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">₹{c.price.toFixed(2)} / unit</p>
+                                            <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium">₹{c.price.toFixed(2)} / {c.isLoose ? 'unit' : 'pack'}</p>
                                         </div>
                                         <div className="text-right shrink-0">
                                             <p className="text-xs sm:text-sm font-bold text-slate-900 leading-tight mb-0.5 sm:mb-1">₹{(c.price * c.quantity).toFixed(2)}</p>
                                             <div className="flex items-center gap-1 sm:gap-2 justify-end bg-slate-50 rounded-lg p-0.5 border border-slate-100">
                                                 <button onClick={() => updateCartQuantity(c.id, c.quantity - 1)} className="h-5 w-5 sm:h-6 sm:w-6 rounded-md hover:bg-white hover:text-red-500 hover:shadow-sm flex items-center justify-center transition-all text-slate-400"><span className="material-symbols-outlined text-[14px] sm:text-[16px]">remove</span></button>
-                                                <span className="text-[10px] sm:text-xs font-bold w-3 sm:w-4 text-center">{c.quantity}</span>
+                                                <span className="text-[10px] sm:text-xs font-bold w-6 sm:w-8 text-center">{c.quantity} {c.isLoose ? 'u' : 'pk'}</span>
                                                 <button onClick={() => updateCartQuantity(c.id, c.quantity + 1)} className="h-5 w-5 sm:h-6 sm:w-6 rounded-md hover:bg-white hover:text-emerald-600 hover:shadow-sm flex items-center justify-center transition-all text-slate-400"><span className="material-symbols-outlined text-[14px] sm:text-[16px]">add</span></button>
                                             </div>
                                         </div>
@@ -484,9 +643,51 @@ export function POSDashboard() {
                                     <span className="text-slate-500 font-medium">Subtotal</span>
                                     <span className="font-bold text-slate-700">₹{cartTotal.toFixed(2)}</span>
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 items-end pt-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] tracking-widest uppercase font-bold text-slate-500">Discount (%)</Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={pharmacyDiscountPercent}
+                                                onChange={e => setPharmacyDiscountPercent(e.target.value)}
+                                                placeholder="0"
+                                                className="pr-6 h-8 sm:h-9 text-xs sm:text-sm"
+                                            />
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] tracking-widest uppercase font-bold text-slate-500">Discounted (₹)</Label>
+                                        <div className="relative">
+                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                value={pharmacyDiscountedTotal}
+                                                onChange={e => {
+                                                    setPharmacyDiscountedTotal(e.target.value);
+                                                    const discounted = parseFloat(e.target.value);
+                                                    if (cartTotal > 0 && discounted >= 0 && discounted <= cartTotal) {
+                                                        const pct = ((cartTotal - discounted) / cartTotal) * 100;
+                                                        if (Math.abs(parseFloat(pharmacyDiscountPercent || '0') - pct) > 0.1) {
+                                                            setPharmacyDiscountPercent(pct.toFixed(2));
+                                                        }
+                                                    }
+                                                }}
+                                                placeholder="0.00"
+                                                disabled={cartTotal === 0}
+                                                className="pl-6 h-8 sm:h-9 text-xs sm:text-sm font-bold bg-slate-50"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="flex justify-between text-base sm:text-lg font-bold border-t border-slate-200 pt-2 mt-2">
                                     <span className="text-slate-900">Total</span>
-                                    <span className="text-emerald-600">₹{cartTotal.toFixed(2)}</span>
+                                    <span className="text-emerald-600">₹{parseFloat(pharmacyDiscountedTotal || cartTotal.toString()).toFixed(2)}</span>
                                 </div>
                             </div>
 
@@ -533,24 +734,59 @@ export function POSDashboard() {
                     {promptItem && (
                         <form onSubmit={confirmAddToCart} className="p-6">
                             <div className="space-y-4">
+                                {(promptItem?.units_per_pack || 1) > 1 && (
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Dispensing Type</Label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSellType('pack')}
+                                                className={`flex-1 py-2 px-3 rounded-lg border-2 text-xs font-bold transition-all ${sellType === 'pack' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 bg-slate-50 text-slate-500'}`}
+                                            >
+                                                Packs
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSellType('unit')}
+                                                className={`flex-1 py-2 px-3 rounded-lg border-2 text-xs font-bold transition-all ${sellType === 'unit' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-100 bg-slate-50 text-slate-500'}`}
+                                            >
+                                                Loose Units
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Quantity</Label>
+                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">
+                                        Quantity { (promptItem?.units_per_pack || 1) > 1 ? `(${sellType === 'pack' ? 'Packs' : 'Units'})` : '' }
+                                    </Label>
                                     <Input
                                         autoFocus
                                         type="number"
                                         step="1"
                                         min="1"
-                                        max={promptItem?.quantity}
+                                        max={sellType === 'pack' ? Math.floor(promptItem?.quantity / (promptItem?.units_per_pack || 1)) : promptItem?.quantity}
                                         value={qtyInput}
                                         onChange={(e) => setQtyInput(e.target.value)}
                                         placeholder="1"
                                         className="bg-white border-slate-200 text-lg font-bold h-12"
                                         required
                                     />
+                                    {sellType === 'unit' && (promptItem?.units_per_pack || 1) > 1 && (
+                                        <p className="text-[10px] text-slate-500 italic">
+                                            1 Pack = {promptItem.units_per_pack} units
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="p-3 bg-blue-50/50 rounded-lg flex justify-between items-center border border-blue-100">
                                     <span className="text-sm text-slate-600 font-medium">Total Price:</span>
-                                    <span className="text-lg font-bold text-blue-700">₹{((parseFloat(promptItem?.mrp) || 0) * (parseInt(qtyInput) || 0)).toFixed(2)}</span>
+                                    <span className="text-lg font-bold text-blue-700">
+                                        ₹{(() => {
+                                            const qty = parseInt(qtyInput) || 0;
+                                            const mrp = parseFloat(promptItem?.mrp) || 0;
+                                            const upp = promptItem?.units_per_pack || 1;
+                                            return (sellType === 'pack' ? (mrp * qty) : (mrp / upp * qty)).toFixed(2);
+                                        })()}
+                                    </span>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">

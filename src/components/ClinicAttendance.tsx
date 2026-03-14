@@ -3,6 +3,7 @@ import { Loader2, Clock, AlertTriangle, CheckCircle2, XCircle } from 'lucide-rea
 import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { toast } from '@/components/ui/use-toast'
+import { getTodayIST } from '@/lib/utils'
 
 interface ClinicAttendanceProps {
     clinicId: string;
@@ -48,7 +49,7 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
             setStaffList(staffData || [])
 
             // 3. Fetch today's attendance records
-            const today = new Date().toISOString().split('T')[0]
+            const today = getTodayIST()
             const attData = await db.list('staff_attendance', {
                 filters: { clinic_id: clinicId, date: today }
             })
@@ -153,7 +154,7 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
     const handlePunchIn = async (staffId: string, isLate: boolean) => {
         if (!hospital?.id) return;
         const now = new Date().toISOString();
-        const today = now.split('T')[0];
+        const today = getTodayIST();
 
         try {
             const data = await db.create('staff_attendance', {
@@ -198,7 +199,7 @@ export function ClinicAttendance({ clinicId, onNavigate }: ClinicAttendanceProps
 
     const handleMarkAbsent = async (staffId: string) => {
         if (!hospital?.id) return;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayIST();
 
         try {
             const data = await db.create('staff_attendance', {

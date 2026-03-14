@@ -2,17 +2,19 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { dataService as db } from '@/lib/dataService'
 import * as XLSX from 'xlsx'
 import { Button, Input, Label } from '@/components/ui/basic'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Tooltip } from '@/components/ui/tooltip'
+import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogDescription } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useHospital } from '@/context/HospitalContext'
 import { MapPin } from 'lucide-react'
 
 interface InventoryDashboardProps {
     clinicIdOverride?: string;
+    onNavigate?: (view: any) => void;
 }
 
-export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps) {
-    const { inventory, profile: userProfile, clinics, refreshData, hospital, updateInventoryItem, billing, pendingRestockId, setPendingRestockId } = useHospital()
+export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDashboardProps) {
+    const { inventory, profile: userProfile, clinics, refreshData, hospital, updateInventoryItem, billing, pendingRestockId, setPendingRestockId, setPendingPOItem } = useHospital()
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
     const [syncing, setSyncing] = useState(false)
@@ -22,6 +24,12 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
     const [restockItem, setRestockItem] = useState<any>(null)
     const [filterType, setFilterType] = useState<'all' | 'low' | 'expired'>('all')
     const [isFullScreen, setIsFullScreen] = useState(false)
+    const [selectedItems, setSelectedItems] = useState<string[]>([])
+    const [isSelectionMode, setIsSelectionMode] = useState(false)
+    const [colFilterName, setColFilterName] = useState('')
+    const [colFilterStore, setColFilterStore] = useState('')
+    const [colFilterBatch, setColFilterBatch] = useState('')
+    const [isProcureChoiceModalOpen, setIsProcureChoiceModalOpen] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Effective Clinic: Override > Profile Clinic > Null (All)
@@ -65,8 +73,11 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
 
     const lowStockItemsAggregated = useMemo(() => {
         return aggregatedInventory.filter((i: any) => {
-            const threshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-            return i.total_quantity < threshold;
+            const itemThreshold = i.threshold || hospital?.settings?.global_low_stock_threshold || 10;
+            const totalQuantity = i.total_quantity || 0;
+            const unitsPerPack = i.units_per_pack || 1;
+            const totalPacks = Math.floor(totalQuantity / unitsPerPack);
+            return totalPacks < itemThreshold;
         });
     }, [aggregatedInventory, hospital]);
 
@@ -85,9 +96,15 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
             }
             if (filterType === 'expired') matchesType = new Date(i.expiry_date) < now;
 
-            return matchesClinicOverride && matchesDropdownFilter && matchesSearch && matchesType;
+            // Column Filters
+            const matchesColName = (i.item_name || '').toLowerCase().includes(colFilterName.toLowerCase());
+            const clinicName = clinics.find(c => c.id === i.clinic_id)?.name || '';
+            const matchesColStore = clinicName.toLowerCase().includes(colFilterStore.toLowerCase());
+            const matchesColBatch = (i.batch_number || '').toLowerCase().includes(colFilterBatch.toLowerCase());
+
+            return matchesClinicOverride && matchesDropdownFilter && matchesSearch && matchesType && matchesColName && matchesColStore && matchesColBatch;
         });
-    }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType, lowStockItemsAggregated]);
+    }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType, lowStockItemsAggregated, colFilterName, colFilterStore, colFilterBatch, clinics]);
 
     const lowStockCount = lowStockItemsAggregated.length;
     const expiredCount = inventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && new Date(i.expiry_date) < now).length;
@@ -110,7 +127,9 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
         setLoading(true)
         const formData = new FormData(e.currentTarget)
         const item_name = formData.get('item_name') as string
-        const quantity = parseInt(formData.get('quantity') as string)
+        const packs = parseInt(formData.get('quantity') as string) || 0
+        const units_per_pack = parseInt(formData.get('units_per_pack') as string) || 1
+        const total_quantity = packs * units_per_pack
         const batch_number = formData.get('batch_number') as string
         const expiry_date = formData.get('expiry_date') as string
 
@@ -135,9 +154,10 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                 // Update existing
                 const existingItem = existingItems[0];
                 await updateInventoryItem(existingItem.id, {
-                    quantity: existingItem.quantity + quantity
+                    quantity: existingItem.quantity + total_quantity,
+                    units_per_pack: units_per_pack // Update just in case
                 });
-                toast({ title: 'Success', description: `Added ${quantity} to existing stock batch.` });
+                toast({ title: 'Success', description: `Added ${packs} packs (${total_quantity} units) to existing stock batch.` });
             } else {
                 if (billing?.isAtLimit('inventory_items')) {
                     toast({
@@ -154,7 +174,8 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                     clinic_id: targetClinicId,
                     hospital_id: hospital?.id || userProfile?.hospital_id,
                     item_name,
-                    quantity: quantity,
+                    quantity: total_quantity,
+                    units_per_pack: units_per_pack,
                     mrp: mrp,
                     batch_number,
                     expiry_date,
@@ -182,12 +203,15 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
 
         setLoading(true)
         const formData = new FormData(e.currentTarget)
+        const packs = parseInt(formData.get('quantity') as string) || 0
+        const units_per_pack = parseInt(formData.get('units_per_pack') as string) || 1
         const updates = {
             item_name: formData.get('item_name') as string,
             batch_number: formData.get('batch_number') as string,
             expiry_date: formData.get('expiry_date') as string,
             mrp: parseFloat(formData.get('mrp') as string) || 0,
-            quantity: parseInt(formData.get('quantity') as string) || 0,
+            quantity: packs * units_per_pack,
+            units_per_pack: units_per_pack,
             threshold: parseInt(formData.get('threshold') as string) || hospital?.settings?.global_low_stock_threshold || 10
         }
 
@@ -400,6 +424,40 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
         }
     };
 
+    const handleDeleteItem = async (item: any) => {
+        if (!canBulkDeleteInventory) {
+            toast({ title: 'Permission Denied', description: 'Only Hospital Administrators can delete items.', variant: 'destructive' });
+            return;
+        }
+
+        if (item.quantity > 0) {
+            toast({ title: 'Delete Failed', description: 'Item must have zero stock to be deleted.', variant: 'destructive' });
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to remove ${item.item_name} from inventory? This action is reversible by system administrators.`)) {
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await updateInventoryItem(item.id, { is_active: false });
+            toast({
+                title: 'Item Removed',
+                description: `${item.item_name} has been archived successfully.`,
+                variant: 'default'
+            });
+        } catch (error: any) {
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to remove item.',
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className={isFullScreen
             ? "fixed inset-0 z-50 bg-slate-50 p-4 sm:p-6 lg:p-8 flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
@@ -432,16 +490,81 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                             ))}
                         </select>
                     )}
-                    <button
-                        onClick={handleSync}
-                        disabled={syncing}
-                        className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors bg-white shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        <span className={`material-symbols-outlined text-[20px] ${syncing ? 'animate-spin' : ''}`}>sync</span>
-                        {syncing ? 'Syncing...' : 'Sync DB'}
-                    </button>
+                    {isSelectionMode && (
+                        <Tooltip content="Finalize your selection and create a procurement bill for the chosen items.">
+                            <Button
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                                onClick={() => {
+                                    const selectedRecs = inventory.filter(i => selectedItems.includes(i.id));
+                                    // Implementation for bulk procurement
+                                    toast({ title: "Procurement Bill", description: "Generating bill for " + selectedRecs.length + " items" });
+                                    setIsSelectionMode(false);
+                                    setSelectedItems([]);
+                                }}
+                            >
+                                <span className="material-symbols-outlined">receipt_long</span>
+                                Create Procurement Bill ({selectedItems.length})
+                            </Button>
+                        </Tooltip>
+                    )}
 
-                    {canEditInventory && (
+                    {!effectiveClinicId && (
+                        <>
+                            <Tooltip content="Procure medicines either by restocking existing items or adding new products to the system.">
+                                <Button
+                                    onClick={() => setIsProcureChoiceModalOpen(true)}
+                                    className={`bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-5 rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 transition-all group ${isSelectionMode ? 'bg-slate-700 hover:bg-slate-800' : ''}`}
+                                >
+                                    <span className="material-symbols-outlined text-[20px] group-hover:rotate-12 transition-transform">shopping_cart</span>
+                                    {isSelectionMode ? 'Cancel Selection' : 'Procure Medicines'}
+                                </Button>
+                            </Tooltip>
+
+                            <Tooltip content="Export the current inventory list to an Excel spreadsheet.">
+                                <Button
+                                    variant="outline"
+                                    onClick={handleExportList}
+                                    className="border-slate-200 text-slate-600 hover:bg-white hover:text-blue-600 hover:border-blue-200 bg-white shadow-sm h-10 px-4 rounded-xl flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">download</span>
+                                    Export
+                                </Button>
+                            </Tooltip>
+
+                            <Tooltip content="Bulk import inventory data from a spreadsheet. Ensure you use the correct template.">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="border-slate-200 text-slate-600 hover:bg-white hover:text-emerald-600 hover:border-emerald-200 bg-white shadow-sm h-10 px-4 rounded-xl flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[20px]">upload_file</span>
+                                    Import
+                                </Button>
+                            </Tooltip>
+                        </>
+                    )}
+                    <Tooltip content="Transfer stock between clinics or departments.">
+                        <Button
+                            onClick={() => onNavigate?.('medicine-migration')}
+                            className="flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm whitespace-nowrap"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">swap_horiz</span>
+                            Migrate Medicines
+                        </Button>
+                    </Tooltip>
+
+                    <Tooltip content="Refresh inventory data from the database.">
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors bg-white shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            <span className={`material-symbols-outlined text-[20px] ${syncing ? 'animate-spin' : ''}`}>sync</span>
+                            {syncing ? 'Syncing...' : 'Sync DB'}
+                        </button>
+                    </Tooltip>
+
+                    {canEditInventory && !effectiveClinicId && (
                         <>
                             <input
                                 type="file"
@@ -451,17 +574,23 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 onChange={handleFileUpload}
                             />
 
-                            <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap hidden sm:flex disabled:opacity-50">
-                                {loading ? <span className="material-symbols-outlined text-[20px] animate-spin">sync</span> : <span className="material-symbols-outlined text-[20px]">upload_file</span>}
-                                Import Spreadsheet
-                            </button>
+                            <Tooltip content="Bulk upload inventory from Excel/CSV.">
+                                <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap hidden sm:flex disabled:opacity-50">
+                                    {loading ? <span className="material-symbols-outlined text-[20px] animate-spin">sync</span> : <span className="material-symbols-outlined text-[20px]">upload_file</span>}
+                                    Import Spreadsheet
+                                </button>
+                            </Tooltip>
                         </>
                     )}
 
-                    <button onClick={handleExportList} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap hidden sm:flex">
-                        <span className="material-symbols-outlined text-[20px]">file_download</span>
-                        Export List
-                    </button>
+                    {!effectiveClinicId && (
+                        <Tooltip content="Download current inventory view as a CSV file.">
+                            <button onClick={handleExportList} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap hidden sm:flex">
+                                <span className="material-symbols-outlined text-[20px]">file_download</span>
+                                Export List
+                            </button>
+                        </Tooltip>
+                    )}
                 </div>
             </div>
 
@@ -472,31 +601,40 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                 <div className="flex-1 flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-100">
                     <header className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center gap-4 justify-between bg-slate-50/30 shrink-0">
                         <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={() => setFilterType('low')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${filterType === 'low' ? 'bg-orange-100 border-orange-200 text-orange-800' : 'bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100'}`}>
-                                <span className="material-symbols-outlined text-[18px]">warning</span>
-                                LOW STOCK ({lowStockCount})
-                            </button>
-                            <button
-                                onClick={() => setFilterType('expired')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${filterType === 'expired' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'}`}>
-                                <span className="material-symbols-outlined text-[18px]">event_busy</span>
-                                EXPIRED ({expiredCount})
-                            </button>
+                            <Tooltip content="View items with critically low stock levels.">
+                                <button
+                                    onClick={() => setFilterType('low')}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${filterType === 'low' ? 'bg-orange-100 border-orange-200 text-orange-800' : 'bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-100'}`}>
+                                    <span className="material-symbols-outlined text-[18px]">warning</span>
+                                    LOW STOCK ({lowStockCount})
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="View items that have passed their expiry date.">
+                                <button
+                                    onClick={() => setFilterType('expired')}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${filterType === 'expired' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'}`}>
+                                    <span className="material-symbols-outlined text-[18px]">event_busy</span>
+                                    EXPIRED ({expiredCount})
+                                </button>
+                            </Tooltip>
                             <div className="hidden sm:block h-4 w-px bg-slate-300 mx-1"></div>
-                            <button
-                                onClick={() => setFilterType('all')}
-                                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${filterType === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}>
-                                ALL ITEMS
-                            </button>
-                            <button
-                                onClick={() => setIsFullScreen(!isFullScreen)}
-                                className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-full text-xs font-bold transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 ml-2 shadow-sm">
-                                <span className="material-symbols-outlined text-[16px]">{isFullScreen ? 'fullscreen_exit' : 'fullscreen'}</span>
-                                {isFullScreen ? 'COLLAPSE' : 'EXPAND TABLE'}
-                            </button>
+                            <Tooltip content="Show all active inventory items including those in stock.">
+                                <button
+                                    onClick={() => setFilterType('all')}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${filterType === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}>
+                                    ALL ITEMS
+                                </button>
+                            </Tooltip>
+                            <Tooltip content={isFullScreen ? 'Exit full screen view.' : 'Expand the table to full screen for better visibility.'}>
+                                <button
+                                    onClick={() => setIsFullScreen(!isFullScreen)}
+                                    className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-full text-xs font-bold transition-colors bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 ml-2 shadow-sm">
+                                    <span className="material-symbols-outlined text-[16px]">{isFullScreen ? 'fullscreen_exit' : 'fullscreen'}</span>
+                                    {isFullScreen ? 'COLLAPSE' : 'EXPAND TABLE'}
+                                </button>
+                            </Tooltip>
                             {canBulkDeleteInventory && expiredCount > 0 && (
+                            <Tooltip content="Archive all expired batch records to clean up the list.">
                                 <button
                                     onClick={handleRemoveExpired}
                                     disabled={loading}
@@ -505,17 +643,53 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                     <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
                                     REMOVE EXPIRED
                                 </button>
+                            </Tooltip>
                             )}
                         </div>
-                        <div className="relative w-full sm:w-64">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
-                            <input
-                                className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
-                                placeholder="Search by name or batch..."
-                                type="text"
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                            />
+                        <div className="flex items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+                            {isSelectionMode && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            const selected = inventory.filter(i => selectedItems.includes(i.id));
+                                            if (selected.length === 0) {
+                                                toast({ title: "No Items Selected", description: "Please select at least one item to proceed.", variant: "destructive" });
+                                                return;
+                                            }
+                                            setPendingPOItem(selected);
+                                            if (onNavigate) onNavigate('procurement');
+                                            toast({
+                                                title: "Redirecting to Procurement",
+                                                description: `Drafting order for ${selectedItems.length} items`
+                                            });
+                                        }}
+                                        className="flex items-center gap-1 px-4 py-2 rounded-full text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                                        CREATE PROCUREMENT BILL ({selectedItems.length})
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsSelectionMode(false);
+                                            setSelectedItems([]);
+                                        }}
+                                        className="flex items-center gap-1 px-4 py-2 rounded-full text-xs font-bold transition-all bg-slate-200 text-slate-700 hover:bg-slate-300 shadow-sm"
+                                    >
+                                        <span className="material-symbols-outlined text-[16px]">close</span>
+                                        CANCEL
+                                    </button>
+                                </div>
+                            )}
+                            <div className="relative w-full sm:w-64">
+                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+                                <input
+                                    className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
+                                    placeholder="Search by name or batch..."
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                            </div>
                         </div>
                     </header>
 
@@ -523,18 +697,56 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                         <table className="w-full text-left border-collapse min-w-[800px]">
                             <thead className="bg-white sticky top-0 border-b border-slate-100 z-10 shadow-sm">
                                 <tr>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Item Name</th>
-                                    {!effectiveClinicId && <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Store</th>}
-                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Batch No</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Expiry</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white">Stock Level</th>
-                                    {canEditInventory && <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white text-right">Actions</th>}
+                                    {isSelectionMode && (
+                                        <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white w-10 align-top">
+                                            <input 
+                                                type="checkbox" 
+                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer mt-1"
+                                                checked={filteredInventory.length > 0 && selectedItems.length === filteredInventory.length}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedItems(filteredInventory.map(i => i.id));
+                                                    } else {
+                                                        setSelectedItems([]);
+                                                    }
+                                                }}
+                                                title="Select All"
+                                            />
+                                        </th>
+                                    )}
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white align-top">
+                                        <div className="flex flex-col gap-2">
+                                            <span>Item Name</span>
+                                            <input type="text" placeholder="Filter..." className="px-2 py-1 border border-slate-200 rounded text-xs w-full font-normal normal-case" value={colFilterName} onChange={e => setColFilterName(e.target.value)} />
+                                        </div>
+                                    </th>
+                                    {!effectiveClinicId && <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white align-top">
+                                        <div className="flex flex-col gap-2">
+                                            <span>Store</span>
+                                            <input type="text" placeholder="Filter..." className="px-2 py-1 border border-slate-200 rounded text-xs w-full font-normal normal-case" value={colFilterStore} onChange={e => setColFilterStore(e.target.value)} />
+                                        </div>
+                                    </th>}
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white align-top">
+                                        <div className="flex flex-col gap-2">
+                                            <span>Batch No</span>
+                                            <input type="text" placeholder="Filter..." className="px-2 py-1 border border-slate-200 rounded text-xs w-full font-normal normal-case" value={colFilterBatch} onChange={e => setColFilterBatch(e.target.value)} />
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white align-top">
+                                        <div className="mt-1">Expiry</div>
+                                    </th>
+                                     <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white align-top">
+                                         <div className="mt-1">Stock Level</div>
+                                     </th>
+                                    {canEditInventory && <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-white text-right align-top">
+                                        <div className="mt-1">Actions</div>
+                                    </th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {filteredInventory.length === 0 ? (
                                     <tr>
-                                        <td colSpan={(effectiveClinicId ? 4 : 5) + (canEditInventory ? 1 : 0)} className="px-6 py-12 text-center text-slate-400 bg-slate-50/50">
+                                        <td colSpan={(effectiveClinicId ? 5 : 6) + (canEditInventory ? 1 : 0)} className="px-6 py-12 text-center text-slate-400 bg-slate-50/50">
                                             <div className="flex flex-col items-center">
                                                 <span className="material-symbols-outlined text-4xl mb-2 opacity-50">inventory_2</span>
                                                 <p>No inventory items match your current filters.</p>
@@ -544,15 +756,31 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 ) : (
                                     filteredInventory.map(item => {
                                         const { icon, color } = getIconInfo(item.item_name);
-                                        const threshold = item.threshold || hospital?.settings?.global_low_stock_threshold || 10;
-                                        const agg = aggregatedInventory.find(a => a.item_name === item.item_name && a.clinic_id === item.clinic_id);
-                                        const totalQty = (agg as any)?.total_quantity || item.quantity;
-                                        const isLow = totalQty < threshold;
-                                        const isExpired = new Date(item.expiry_date) < now;
-                                        const pct = Math.min(100, Math.max(5, (item.quantity / (item.threshold * 2 || 100)) * 100));
+                                        const globalThreshold = hospital?.settings?.global_low_stock_threshold || 10;
+                                        const itemThreshold = item.threshold || globalThreshold;
+                                        const totalPacks = Math.floor(item.quantity / (item.units_per_pack || 1));
+                                        const isLow = totalPacks < itemThreshold;
+                                        const isExpired = item.expiry_date ? new Date(item.expiry_date) < now : false;
+                                        const pct = Math.min(100, Math.max(5, (totalPacks / (itemThreshold * 2 || 10)) * 100));
 
                                         return (
-                                            <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors group ${selectedItems.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
+                                                {isSelectionMode && (
+                                                    <td className="px-6 py-4">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                            checked={selectedItems.includes(item.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedItems(prev => [...prev, item.id]);
+                                                                } else {
+                                                                    setSelectedItems(prev => prev.filter(i => i !== item.id));
+                                                                }
+                                                            }}
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3 w-max">
                                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color} shrink-0`}>
@@ -582,15 +810,26 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3 w-32">
-                                                        <span className={`font-bold text-sm w-8 shrink-0 ${isLow ? 'text-orange-600' : 'text-slate-900'}`}>
-                                                            {item.quantity < 10 ? `0${item.quantity}` : item.quantity}
-                                                        </span>
-                                                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0">
-                                                            <div className={`h-full rounded-full ${isLow ? 'bg-orange-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                </td>
+                                                     <div className="flex flex-col gap-1 w-max">
+                                                         <div className="flex items-center gap-2">
+                                                             <span className={`font-bold text-sm ${isLow ? 'text-orange-600' : 'text-slate-900'}`}>
+                                                                 {totalPacks} Packs
+                                                             </span>
+                                                             {item.quantity % (item.units_per_pack || 1) > 0 && (
+                                                                 <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                     +{item.quantity % (item.units_per_pack || 1)} units
+                                                                 </span>
+                                                             )}
+                                                         </div>
+                                                         <div className="w-24 h-1 bg-slate-100 rounded-full overflow-hidden shrink-0">
+                                                             <div className={`h-full rounded-full ${isLow ? 'bg-orange-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div>
+                                                         </div>
+                                                         <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter mt-0.5">
+                                                             {item.quantity} total • {item.units_per_pack}/pack
+                                                         </div>
+                                                     </div>
+                                                 </td>
+
                                                 {canEditInventory && (
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -599,11 +838,35 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                                                 className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Restock Item">
                                                                 <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
                                                             </button>
+                                                            {isLow && !effectiveClinicId && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-blue-600 text-white hover:bg-blue-700 font-bold"
+                                                                    onClick={() => {
+                                                                        setPendingPOItem(item);
+                                                                        if (onNavigate) onNavigate('procurement');
+                                                                        toast({ 
+                                                                            title: "Redirecting to Procurement", 
+                                                                            description: `Drafting order for ${item.item_name}` 
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <span className="material-symbols-outlined text-sm mr-1">order_approve</span>
+                                                                    Create PO
+                                                                </Button>
+                                                            )}
                                                             <button
                                                                 onClick={() => setEditingItem(item)}
                                                                 className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit Item">
                                                                 <span className="material-symbols-outlined text-[20px]">edit_square</span>
                                                             </button>
+                                                            {canBulkDeleteInventory && item.quantity <= 0 && (
+                                                                <button
+                                                                    onClick={() => handleDeleteItem(item)}
+                                                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Item">
+                                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 )}
@@ -660,15 +923,21 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                             <input name="item_name" required className="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="e.g. Saline Bottle 1L" type="text" />
                                         </div>
                                     </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Qty Added</label>
-                                            <div className="relative">
-                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">format_list_numbered</span>
-                                                <input name="quantity" required min="1" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0" type="number" />
-                                            </div>
-                                        </div>
+                                     <div className="grid grid-cols-2 gap-4">
+                                         <div className="space-y-1">
+                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Packs Added</label>
+                                             <div className="relative">
+                                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">inventory_2</span>
+                                                 <input name="quantity" required min="1" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="0" type="number" />
+                                             </div>
+                                         </div>
+                                         <div className="space-y-1">
+                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Units/Pack</label>
+                                             <div className="relative">
+                                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">widgets</span>
+                                                 <input name="units_per_pack" required min="1" defaultValue="1" className="w-full bg-slate-50 border-slate-200 rounded-lg pl-9 pr-3 py-2.5 text-sm font-bold font-mono text-slate-700 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all shadow-sm" placeholder="1" type="number" />
+                                             </div>
+                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Unit MRP (₹)</label>
                                             <div className="relative">
@@ -706,8 +975,8 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                     <div key={'alert-' + item.id} className="flex items-start gap-3 p-3 rounded-xl border border-orange-100 bg-orange-50/30">
                                         <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 shrink-0 animate-pulse"></div>
                                         <div className="min-w-0">
-                                            <p className="text-[13px] font-bold text-slate-800 leading-tight">Stock Minimum Threshold: {item.item_name}</p>
-                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-medium">Only {(item as any).total_quantity} units left • Action Reqd</p>
+                                            <p className="text-[13px] font-bold text-slate-800 leading-tight">Low Stock Alert: {item.item_name}</p>
+                                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-medium">Only {Math.floor((item as any).total_quantity / (item.units_per_pack || 1))} packs remaining • Action Reqd</p>
                                         </div>
                                     </div>
                                 ))}
@@ -801,10 +1070,14 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                                 </div>
                             </div>
                             <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-5 mt-5">
-                                <div className="space-y-1">
-                                    <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Stock Level</Label>
-                                    <Input name="quantity" type="number" defaultValue={editingItem.quantity} className="bg-slate-50 border-slate-200 font-mono font-bold text-slate-900 h-10" required />
-                                </div>
+                                 <div className="space-y-1">
+                                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Packs In Stock</Label>
+                                     <Input name="quantity" type="number" defaultValue={Math.floor(editingItem.quantity / (editingItem.units_per_pack || 1))} className="bg-slate-50 border-slate-200 font-mono font-bold text-slate-900 h-10" required />
+                                 </div>
+                                 <div className="space-y-1">
+                                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-[#0ea5e9]">Units Per Pack</Label>
+                                     <Input name="units_per_pack" type="number" min="1" defaultValue={editingItem.units_per_pack || 1} className="bg-slate-50 border-slate-200 font-mono font-bold text-slate-900 h-10" required />
+                                 </div>
                                 <div className="space-y-1">
                                     <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest text-orange-600" title="Trigger low stock warning">Min Alert</Label>
                                     <Input name="threshold" type="number" min="0" defaultValue={editingItem.threshold || 20} className="bg-slate-50 border-slate-200 font-mono font-bold text-slate-900 h-10" required />
@@ -824,6 +1097,71 @@ export function InventoryDashboard({ clinicIdOverride }: InventoryDashboardProps
                             </div>
                         </form>
                     )}
+                </DialogContent>
+            </Dialog>
+            {/* Procurement Choice Modal */}
+            <Dialog open={isProcureChoiceModalOpen} onOpenChange={setIsProcureChoiceModalOpen}>
+                <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-white border-none shadow-2xl">
+                    <div className="h-2 bg-blue-600 w-full" />
+                    <div className="p-8">
+                        <DialogHeader className="mb-8">
+                            <DialogTitle className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                                <span className="material-symbols-outlined text-blue-600 bg-blue-50 p-2 rounded-xl">shopping_cart_checkout</span>
+                                Procurement Workflow
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-500 mt-2 text-base">
+                                How would you like to proceed with your procurement order today?
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="grid gap-4">
+                            <button
+                                onClick={() => {
+                                    setIsProcureChoiceModalOpen(false);
+                                    setIsSelectionMode(true);
+                                    toast({
+                                        title: "Restock Mode Active",
+                                        description: "Please select medications from the inventory table below and click 'Create Procurement Bill'.",
+                                        duration: 8000
+                                    });
+                                }}
+                                className="group flex items-start gap-4 p-5 rounded-2xl border-2 border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all text-left"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                                    <span className="material-symbols-outlined text-blue-600 text-2xl">inventory</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-lg">Procure Existing Products</h4>
+                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                        Restock your inventory by selecting existing items. This allows you to generate a procurement bill for products already tracked in the system.
+                                    </p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setIsProcureChoiceModalOpen(false);
+                                    onNavigate?.('procurement');
+                                }}
+                                className="group flex items-start gap-4 p-5 rounded-2xl border-2 border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all text-left"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                                    <span className="material-symbols-outlined text-emerald-600 text-2xl">add_shopping_cart</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 text-lg">Procure New Products</h4>
+                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                        Add and order completely new products. You'll be redirected to the procurement dashboard to create a fresh purchase order.
+                                    </p>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 px-8 py-4 border-t border-slate-100 flex justify-end">
+                        <Button variant="ghost" onClick={() => setIsProcureChoiceModalOpen(false)} className="text-slate-500 hover:text-slate-800">
+                            Cancel
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

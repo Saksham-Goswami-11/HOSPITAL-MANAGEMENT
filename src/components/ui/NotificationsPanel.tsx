@@ -167,11 +167,13 @@ export function NotificationsPanel({ open, onClose, onNavigate }: { open: boolea
                                             <p className="text-sm font-mono text-slate-900 mt-1">{selectedNotification.data?.batch_number}</p>
                                         </div>
                                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Current Stock</p>
-                                            <p className="text-lg font-bold text-orange-600 mt-1">{selectedNotification.data?.quantity}</p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Current Stock (Packs)</p>
+                                            <p className="text-lg font-bold text-orange-600 mt-1">
+                                                {(selectedNotification.data?.quantity / (selectedNotification.data?.units_per_pack || 1)).toFixed(1)}
+                                            </p>
                                         </div>
                                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Threshold</p>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Threshold (Packs)</p>
                                             <p className="text-lg font-bold text-slate-900 mt-1">{selectedNotification.data?.threshold || 10}</p>
                                         </div>
                                     </div>
