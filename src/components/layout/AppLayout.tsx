@@ -210,14 +210,26 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
-                                icon="swap_horiz"
-                                label="Medicine Migration"
-                                active={view === 'medicine-migration'}
-                                onClick={() => setView('medicine-migration')}
+                                icon="payments"
+                                label="Other Expenses"
+                                active={view === 'expenses'}
+                                onClick={() => setView('expenses')}
                                 disabled={lockNavigation}
                             />
-
-
+                            <NavItem
+                                icon="conveyor_belt"
+                                label="Equipments Listing"
+                                active={view === 'equipments'}
+                                onClick={() => setView('equipments')}
+                                disabled={lockNavigation}
+                            />
+                            <NavItem
+                                icon="account_balance"
+                                label="Finance Suite"
+                                active={view === 'ca-suite'}
+                                onClick={() => setView('ca-suite')}
+                                disabled={lockNavigation}
+                            />
                         </>
                     )}
 

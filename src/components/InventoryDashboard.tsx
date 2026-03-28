@@ -6,7 +6,14 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogDescription } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
 import { useHospital } from '@/context/HospitalContext'
-import { MapPin } from 'lucide-react'
+import { 
+    DropdownMenu, 
+    DropdownMenuContent, 
+    DropdownMenuItem, 
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/DropdownMenu'
+import { MapPin, Download, Upload, History, RefreshCcw, ArrowLeftRight, ShoppingCart, Receipt } from 'lucide-react'
 
 interface InventoryDashboardProps {
     clinicIdOverride?: string;
@@ -30,6 +37,11 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
     const [colFilterStore, setColFilterStore] = useState('')
     const [colFilterBatch, setColFilterBatch] = useState('')
     const [isProcureChoiceModalOpen, setIsProcureChoiceModalOpen] = useState(false)
+    const [historicalDate, setHistoricalDate] = useState<string>('')
+    const [isHistoricalMode, setIsHistoricalMode] = useState(false)
+    const [historicalInventory, setHistoricalInventory] = useState<any[]>([])
+    const [isExportDateModalOpen, setIsExportDateModalOpen] = useState(false)
+    const [exportTargetDate, setExportTargetDate] = useState(new Date().toISOString().split('T')[0])
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Effective Clinic: Override > Profile Clinic > Null (All)
@@ -51,11 +63,43 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
         }
     }, [pendingRestockId, inventory, setPendingRestockId]);
 
+    // Handle historical data fetching
+    useEffect(() => {
+        if (isHistoricalMode && historicalDate && hospital?.id) {
+            const fetchHistoricalData = async () => {
+                setLoading(true)
+                try {
+                    const data = await db.callRpc('get_inventory_as_of_date', {
+                        p_hospital_id: hospital.id,
+                        p_target_date: new Date(historicalDate).toISOString()
+                    });
+                    // Map historical_quantity back to quantity so existing filters work
+                    const mapped = (data || []).map((item: any) => ({
+                        ...item,
+                        quantity: item.historical_quantity, // override current quantity for display
+                        is_historical: true
+                    }));
+                    setHistoricalInventory(mapped);
+                } catch (err: any) {
+                    toast({ title: 'Error', description: err.message, variant: 'destructive' });
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchHistoricalData();
+        } else if (!isHistoricalMode) {
+            setHistoricalInventory([]);
+        }
+    }, [isHistoricalMode, historicalDate, hospital?.id, toast]);
+
+    // Use current inventory or historical snapshots
+    const displayInventory = isHistoricalMode ? historicalInventory : inventory;
+
     const now = new Date();
 
     const aggregatedInventory = useMemo(() => {
         const groups = new Map();
-        inventory.forEach(item => {
+        displayInventory.forEach(item => {
             const matchesClinicOverride = effectiveClinicId ? item.clinic_id === effectiveClinicId : true;
             if (!matchesClinicOverride) return;
 
@@ -69,7 +113,7 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
             record.total_quantity += (item.quantity || 0);
         });
         return Array.from(groups.values());
-    }, [inventory, effectiveClinicId]);
+    }, [displayInventory, effectiveClinicId]);
 
     const lowStockItemsAggregated = useMemo(() => {
         return aggregatedInventory.filter((i: any) => {
@@ -82,7 +126,7 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
     }, [aggregatedInventory, hospital]);
 
     const filteredInventory = useMemo(() => {
-        return inventory.filter(i => {
+        return displayInventory.filter(i => {
             const matchesClinicOverride = effectiveClinicId ? i.clinic_id === effectiveClinicId : true;
             const matchesDropdownFilter = filterClinicId !== 'all' ? i.clinic_id === filterClinicId : true;
             const matchesSearch = (i.item_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -104,10 +148,10 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
 
             return matchesClinicOverride && matchesDropdownFilter && matchesSearch && matchesType && matchesColName && matchesColStore && matchesColBatch;
         });
-    }, [inventory, effectiveClinicId, filterClinicId, searchQuery, filterType, lowStockItemsAggregated, colFilterName, colFilterStore, colFilterBatch, clinics]);
+    }, [displayInventory, effectiveClinicId, filterClinicId, searchQuery, filterType, lowStockItemsAggregated, colFilterName, colFilterStore, colFilterBatch, clinics]);
 
     const lowStockCount = lowStockItemsAggregated.length;
-    const expiredCount = inventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && new Date(i.expiry_date) < now).length;
+    const expiredCount = displayInventory.filter(i => (effectiveClinicId ? i.clinic_id === effectiveClinicId : true) && new Date(i.expiry_date) < now).length;
 
     const getIconInfo = (itemName: string) => {
         const lower = itemName.toLowerCase();
@@ -226,41 +270,118 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
         }
     }
 
-    const handleExportList = () => {
-        if (filteredInventory.length === 0) {
-            toast({ title: 'Notice', description: 'No items to export based on current filters.', variant: 'default' });
-            return;
-        }
+    const handleExportList = async (targetDateString?: string) => {
+        const isHistoricalExport = !!targetDateString;
+        const exportDateToUse = targetDateString || (isHistoricalMode ? historicalDate : new Date().toISOString());
 
-        const headers = ['Item Name', 'Clinic', 'Batch Number', 'Expiry Date', 'MRP', 'Stock Level', 'Threshold'];
-        const csvRows = [];
+        setLoading(true);
+        toast({ title: 'Preparing Report', description: isHistoricalExport ? `Fetching historical data for ${targetDateString}...` : 'Calculating financial metrics... Please wait.', variant: 'default' });
 
-        csvRows.push(headers.join(','));
+        try {
+            let dataToExport = filteredInventory;
 
-        for (const item of filteredInventory) {
-            const clinicName = clinics.find(c => c.id === item.clinic_id)?.name || 'Unknown';
-            const row = [
-                `"${item.item_name}"`, // Quote strings to handle commas
-                `"${clinicName}"`,
-                `"${item.batch_number || ''}"`,
-                item.expiry_date,
-                item.mrp || 0,
-                item.quantity,
-                item.threshold || 10
+            // 1. If it's a specific historical export request, fetch that data first
+            if (isHistoricalExport) {
+                const targetHospitalId = hospital?.id || userProfile?.hospital_id;
+                const data = await db.callRpc('get_inventory_as_of_date', {
+                    p_hospital_id: targetHospitalId,
+                    p_target_date: new Date(targetDateString).toISOString()
+                });
+                dataToExport = data || [];
+            }
+
+            if (dataToExport.length === 0) {
+                toast({ title: 'Notice', description: 'No items to export for the selected criteria.', variant: 'default' });
+                return;
+            }
+
+            // 2. Fetch Procurement & Supplier Data for financial metrics
+            const targetHospitalId = hospital?.id || userProfile?.hospital_id;
+            const supplierData = await db.list('suppliers', { filters: { hospital_id: targetHospitalId } });
+            const supplierIds = (supplierData || []).map((s: any) => s.id);
+
+            let priceData: any[] = [];
+            if (supplierIds.length > 0) {
+                priceData = await db.list('supplier_item_prices', {
+                    filters: [{ field: 'supplier_id', operator: 'in', value: supplierIds }]
+                });
+            }
+
+            const priceMap = new Map();
+            (priceData || []).forEach((p: any) => {
+                const existing = priceMap.get(p.item_name);
+                if (!existing || new Date(p.updated_at) > new Date(existing.updated_at)) {
+                    priceMap.set(p.item_name, { price: p.price, updated_at: p.updated_at });
+                }
+            });
+
+            const totalLiabilityCurrent = (supplierData || []).reduce((acc: number, s: any) => acc + (s.current_credit || 0), 0);
+
+            // 3. Prepare Data for Excel
+            const worksheetData = dataToExport.map(item => {
+                const clinicName = clinics.find(c => c.id === item.clinic_id)?.name || 'Unknown';
+                const costPrice = priceMap.get(item.item_name)?.price || 0;
+                
+                // Use historical_quantity if available (from RPC), otherwise use live quantity
+                const qty = item.historical_quantity !== undefined ? item.historical_quantity : item.quantity;
+                const valCost = costPrice * qty;
+                const valMRP = (item.mrp || 0) * qty;
+                const profit = valMRP - valCost;
+                const margin = item.mrp ? ((item.mrp - costPrice) / item.mrp) * 100 : 0;
+
+                return {
+                    'Item Name': item.item_name,
+                    'Clinic': clinicName,
+                    'Batch Number': item.batch_number || '',
+                    'Expiry Date': item.expiry_date,
+                    'MRP (Unit)': item.mrp || 0,
+                    'Cost (Unit)': costPrice,
+                    'Stock Level': qty,
+                    'Value @ Cost': valCost,
+                    'Value @ MRP': valMRP,
+                    'Est. Profit': profit,
+                    'Margin %': margin.toFixed(2) + '%'
+                };
+            });
+
+            // 4. Create Workbook and Worksheet
+            const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Report");
+
+            // 5. Add AutoFilters
+            const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+            worksheet['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+
+            // 6. Add Financial Summary at the bottom
+            const summaryStartRow = worksheetData.length + 2;
+            const totalAssetCost = worksheetData.reduce((acc, row) => acc + row['Value @ Cost'], 0);
+            const totalAssetMRP = worksheetData.reduce((acc, row) => acc + row['Value @ MRP'], 0);
+
+            const summaryData = [
+                [],
+                ['--- FINANCIAL SUMMARY (Report Date: ' + new Date(exportDateToUse).toLocaleDateString() + ') ---'],
+                ['Total Inventory Asset Value (at Cost Price)', totalAssetCost.toFixed(2)],
+                ['Total Inventory Asset Value (at MRP)', totalAssetMRP.toFixed(2)],
+                ['Total Outstanding Liabilities (Supplier Dues)', totalLiabilityCurrent.toFixed(2)],
+                ['Net Inventory Position (Assets - Liabilities)', (totalAssetCost - totalLiabilityCurrent).toFixed(2)],
+                ['Weighted Est. Potential Profit in Hand', (totalAssetMRP - totalAssetCost).toFixed(2)]
             ];
-            csvRows.push(row.join(','));
+
+            XLSX.utils.sheet_add_aoa(worksheet, summaryData, { origin: summaryStartRow });
+
+            // 7. Trigger Download
+            const fileName = `inventory_${isHistoricalExport ? 'snapshot_' + targetDateString : (isHistoricalMode ? 'historical_' + historicalDate : 'live')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+
+            toast({ title: 'Export Complete', description: 'Filterable Excel report (.xlsx) downloaded successfully.' });
+            setIsExportDateModalOpen(false);
+        } catch (error: any) {
+            console.error('Export Error:', error);
+            toast({ title: 'Export Failed', description: error.message || 'Could not generate report.', variant: 'destructive' });
+        } finally {
+            setLoading(false);
         }
-
-        const csvContent = "data:text/csv;charset=utf-8," + csvRows.join('\n');
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link); // Required for FF
-
-        link.click();
-
-        document.body.removeChild(link);
     }
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -475,10 +596,10 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                     {!effectiveClinicId && (
                         <select
-                            className="p-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+                            className="p-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px] h-10"
                             value={filterClinicId}
                             onChange={(e) => setFilterClinicId(e.target.value)}
                         >
@@ -490,109 +611,135 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                             ))}
                         </select>
                     )}
-                    {isSelectionMode && (
-                        <Tooltip content="Finalize your selection and create a procurement bill for the chosen items.">
-                            <Button
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-6 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-                                onClick={() => {
-                                    const selectedRecs = inventory.filter(i => selectedItems.includes(i.id));
-                                    // Implementation for bulk procurement
-                                    toast({ title: "Procurement Bill", description: "Generating bill for " + selectedRecs.length + " items" });
-                                    setIsSelectionMode(false);
-                                    setSelectedItems([]);
-                                }}
-                            >
-                                <span className="material-symbols-outlined">receipt_long</span>
-                                Create Procurement Bill ({selectedItems.length})
-                            </Button>
-                        </Tooltip>
-                    )}
 
                     {!effectiveClinicId && (
-                        <>
-                            <Tooltip content="Procure medicines either by restocking existing items or adding new products to the system.">
+                        <div className="flex items-center gap-2">
+                            <Tooltip content="Procure medicines either by restocking existing items or adding new products.">
                                 <Button
                                     onClick={() => setIsProcureChoiceModalOpen(true)}
-                                    className={`bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-5 rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 transition-all group ${isSelectionMode ? 'bg-slate-700 hover:bg-slate-800' : ''}`}
+                                    className={`bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-5 rounded-xl shadow-lg shadow-blue-500/10 flex items-center gap-2 transition-all ${isSelectionMode ? 'bg-slate-700 hover:bg-slate-800' : ''}`}
                                 >
-                                    <span className="material-symbols-outlined text-[20px] group-hover:rotate-12 transition-transform">shopping_cart</span>
-                                    {isSelectionMode ? 'Cancel Selection' : 'Procure Medicines'}
+                                    <ShoppingCart size={18} />
+                                    {isSelectionMode ? 'Cancel Selection' : 'Procure'}
                                 </Button>
                             </Tooltip>
 
-                            <Tooltip content="Export the current inventory list to an Excel spreadsheet.">
+                            {isSelectionMode && (
                                 <Button
-                                    variant="outline"
-                                    onClick={handleExportList}
-                                    className="border-slate-200 text-slate-600 hover:bg-white hover:text-blue-600 hover:border-blue-200 bg-white shadow-sm h-10 px-4 rounded-xl flex items-center gap-2"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-5 rounded-xl shadow-lg shadow-emerald-500/20 animate-in zoom-in-95"
+                                    onClick={() => {
+                                        const selectedRecs = inventory.filter(i => selectedItems.includes(i.id));
+                                        toast({ title: "Procurement Bill", description: `Generating bill for ${selectedRecs.length} items` });
+                                        setIsSelectionMode(false);
+                                        setSelectedItems([]);
+                                    }}
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">download</span>
-                                    Export
+                                    <Receipt size={18} />
+                                    Bill ({selectedItems.length})
                                 </Button>
-                            </Tooltip>
+                            )}
 
-                            <Tooltip content="Bulk import inventory data from a spreadsheet. Ensure you use the correct template.">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="border-slate-200 text-slate-600 hover:bg-white hover:text-emerald-600 hover:border-emerald-200 bg-white shadow-sm h-10 px-4 rounded-xl flex items-center gap-2"
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="h-10 border-slate-200 text-slate-600 hover:bg-white hover:text-blue-600 hover:border-blue-200 shadow-sm px-4 rounded-xl flex items-center gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                                            Actions
+                                        </div>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56 p-2 bg-white rounded-xl shadow-xl border-slate-100">
+                                    <DropdownMenuItem onClick={() => handleExportList()} className="rounded-lg py-2.5 cursor-pointer">
+                                        <Download className="mr-3 h-4 w-4 text-blue-600" />
+                                        <span>Download Excel (Live)</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setIsExportDateModalOpen(true)} className="rounded-lg py-2.5 cursor-pointer">
+                                        <History className="mr-3 h-4 w-4 text-emerald-600" />
+                                        <span>Date-Specific Export</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="my-1 bg-slate-50" />
+                                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="rounded-lg py-2.5 cursor-pointer">
+                                        <Upload className="mr-3 h-4 w-4 text-indigo-600" />
+                                        <span>Import Spreadsheet</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onNavigate?.('medicine-migration')} className="rounded-lg py-2.5 cursor-pointer">
+                                        <ArrowLeftRight className="mr-3 h-4 w-4 text-purple-600" />
+                                        <span>Migrate Medicines</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="my-1 bg-slate-50" />
+                                    <DropdownMenuItem onClick={handleSync} disabled={syncing} className="rounded-lg py-2.5 cursor-pointer">
+                                        <RefreshCcw className={`mr-3 h-4 w-4 text-slate-500 ${syncing ? 'animate-spin' : ''}`} />
+                                        <span>{syncing ? 'Syncing...' : 'Sync Database'}</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
+                    
+                    <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                        {isHistoricalMode ? (
+                            <div className="flex items-center gap-2 animate-in slide-in-from-right-2 bg-blue-50/50 p-1 rounded-lg border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider ml-1">As Of:</span>
+                                <Input 
+                                    type="date" 
+                                    className="h-8 w-32 border-none bg-transparent text-sm focus-visible:ring-0 shadow-none px-1"
+                                    value={historicalDate}
+                                    onChange={(e) => setHistoricalDate(e.target.value)}
+                                    max={new Date().toISOString().split('T')[0]}
+                                />
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-md"
+                                    onClick={() => {
+                                        setIsHistoricalMode(false);
+                                        setHistoricalDate('');
+                                    }}
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">upload_file</span>
-                                    Import
+                                    <span className="material-symbols-outlined text-[16px]">close</span>
                                 </Button>
-                            </Tooltip>
-                        </>
-                    )}
-                    <Tooltip content="Transfer stock between clinics or departments.">
-                        <Button
-                            onClick={() => onNavigate?.('medicine-migration')}
-                            className="flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm whitespace-nowrap"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">swap_horiz</span>
-                            Migrate Medicines
-                        </Button>
-                    </Tooltip>
-
-                    <Tooltip content="Refresh inventory data from the database.">
-                        <button
-                            onClick={handleSync}
-                            disabled={syncing}
-                            className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors bg-white shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            <span className={`material-symbols-outlined text-[20px] ${syncing ? 'animate-spin' : ''}`}>sync</span>
-                            {syncing ? 'Syncing...' : 'Sync DB'}
-                        </button>
-                    </Tooltip>
-
-                    {canEditInventory && !effectiveClinicId && (
-                        <>
-                            <input
-                                type="file"
-                                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                                className="hidden"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                            />
-
-                            <Tooltip content="Bulk upload inventory from Excel/CSV.">
-                                <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm whitespace-nowrap hidden sm:flex disabled:opacity-50">
-                                    {loading ? <span className="material-symbols-outlined text-[20px] animate-spin">sync</span> : <span className="material-symbols-outlined text-[20px]">upload_file</span>}
-                                    Import Spreadsheet
-                                </button>
-                            </Tooltip>
-                        </>
-                    )}
-
-                    {!effectiveClinicId && (
-                        <Tooltip content="Download current inventory view as a CSV file.">
-                            <button onClick={handleExportList} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap hidden sm:flex">
-                                <span className="material-symbols-outlined text-[20px]">file_download</span>
-                                Export List
-                            </button>
-                        </Tooltip>
-                    )}
+                            </div>
+                        ) : (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-10 gap-2 text-slate-600 border-slate-200 hover:bg-white hover:text-blue-600 hover:border-blue-200 shadow-sm rounded-xl px-4"
+                                onClick={() => {
+                                    setIsHistoricalMode(true);
+                                    if (!historicalDate) {
+                                        setHistoricalDate(new Date().toISOString().split('T')[0]);
+                                    }
+                                }}
+                            >
+                                <History size={16} />
+                                <span className="hidden sm:inline">Historical View</span>
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
+
+            {isHistoricalMode && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                            <span className="material-symbols-outlined text-[18px]">info</span>
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-amber-900">Historical Mode Active</p>
+                            <p className="text-xs text-amber-700">Viewing stock levels as of <span className="font-bold underline">{new Date(historicalDate).toLocaleDateString()}</span>. Data entry and edits are disabled.</p>
+                        </div>
+                    </div>
+                    <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-amber-700 hover:text-amber-900 font-bold"
+                        onClick={() => setIsHistoricalMode(false)}
+                    >
+                        Switch to Live
+                    </Button>
+                </div>
+            )}
 
             {/* MAIN DESKTOP LAYOUT W/ SPLIT COLUMNS */}
             <div className="flex flex-col lg:flex-row bg-white border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden flex-1 min-h-[500px]">
@@ -833,33 +980,36 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                                                 {canEditInventory && (
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={() => setRestockItem(item)}
-                                                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Restock Item">
-                                                                <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                                                            </button>
-                                                            {isLow && !effectiveClinicId && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-blue-600 text-white hover:bg-blue-700 font-bold"
-                                                                    onClick={() => {
-                                                                        setPendingPOItem(item);
-                                                                        if (onNavigate) onNavigate('procurement');
-                                                                        toast({ 
-                                                                            title: "Redirecting to Procurement", 
-                                                                            description: `Drafting order for ${item.item_name}` 
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    <span className="material-symbols-outlined text-sm mr-1">order_approve</span>
-                                                                    Create PO
-                                                                </Button>
-                                                            )}
-                                                            <button
-                                                                onClick={() => setEditingItem(item)}
-                                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit Item">
-                                                                <span className="material-symbols-outlined text-[20px]">edit_square</span>
-                                                            </button>
+                                                             <button
+                                                                 onClick={() => setRestockItem(item)}
+                                                                 disabled={isHistoricalMode}
+                                                                 className={`p-1.5 rounded transition-colors ${isHistoricalMode ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`} title={isHistoricalMode ? "Disabled in Historical View" : "Restock Item"}>
+                                                                 <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
+                                                             </button>
+                                                             {isLow && !effectiveClinicId && (
+                                                                 <Button
+                                                                     size="sm"
+                                                                     disabled={isHistoricalMode}
+                                                                     className={`font-bold ${isHistoricalMode ? 'bg-slate-200 text-slate-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                                                     onClick={() => {
+                                                                         setPendingPOItem(item);
+                                                                         if (onNavigate) onNavigate('procurement');
+                                                                         toast({ 
+                                                                             title: "Redirecting to Procurement", 
+                                                                             description: `Drafting order for ${item.item_name}` 
+                                                                         });
+                                                                     }}
+                                                                 >
+                                                                     <span className="material-symbols-outlined text-sm mr-1">order_approve</span>
+                                                                     Create PO
+                                                                 </Button>
+                                                             )}
+                                                             <button
+                                                                 onClick={() => setEditingItem(item)}
+                                                                 disabled={isHistoricalMode}
+                                                                 className={`p-1.5 rounded transition-colors ${isHistoricalMode ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}`} title={isHistoricalMode ? "Disabled in Historical View" : "Edit Item"}>
+                                                                 <span className="material-symbols-outlined text-[20px]">edit_square</span>
+                                                             </button>
                                                             {canBulkDeleteInventory && item.quantity <= 0 && (
                                                                 <button
                                                                     onClick={() => handleDeleteItem(item)}
@@ -901,7 +1051,14 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                                     Quick Stock Entry
                                 </h2>
 
-                                <form onSubmit={handleRestock} className="space-y-5 bg-white p-5 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100">
+                                <form onSubmit={handleRestock} className="space-y-5 bg-white p-5 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 relative overflow-hidden">
+                                    {isHistoricalMode && (
+                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center p-6 text-center">
+                                            <span className="material-symbols-outlined text-slate-400 text-3xl mb-2">history</span>
+                                            <p className="text-sm font-bold text-slate-600">Quick Entry Disabled</p>
+                                            <p className="text-[10px] text-slate-400 leading-tight">Exit Historical Mode to add new stock records</p>
+                                        </div>
+                                    )}
                                     {!effectiveClinicId && (
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">Target Clinic Location*</label>
@@ -1164,6 +1321,47 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                     </div>
                 </DialogContent>
             </Dialog>
+            {/* Historical Export Date Modal */}
+            <Dialog open={isExportDateModalOpen} onOpenChange={setIsExportDateModalOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Export Historical Snapshot</DialogTitle>
+                        <DialogDescription>
+                            Select a date to generate a filterable Excel report of your inventory as it existed on that day.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="export-date">Snapshot Date</Label>
+                            <Input
+                                id="export-date"
+                                type="date"
+                                value={exportTargetDate}
+                                onChange={(e) => setExportTargetDate(e.target.value)}
+                                max={new Date().toISOString().split('T')[0]}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => setIsExportDateModalOpen(false)}>Cancel</Button>
+                        <Button 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => handleExportList(exportTargetDate)}
+                            disabled={loading}
+                        >
+                            {loading ? 'Preparing...' : 'Generate Excel Report'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            {/* Hidden Input for File Upload */}
+            <input
+                type="file"
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+            />
         </div>
     )
 }

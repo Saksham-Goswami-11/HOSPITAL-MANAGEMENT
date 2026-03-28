@@ -20,6 +20,7 @@ export function POSDashboard() {
 
     // Form States
     const [patientName, setPatientName] = useState('');
+    const [patientAddress, setPatientAddress] = useState('');
     const [doctorName, setDoctorName] = useState('');
     const [paymentMode, setPaymentMode] = useState('Cash');
 
@@ -125,6 +126,7 @@ export function POSDashboard() {
             const recordedSale = { 
                 id: saleId, 
                 patient_name: patientName, 
+                patient_address: patientAddress,
                 doctor_name: doctorName, 
                 amount: finalAmount, 
                 subtotal: amount,
@@ -137,7 +139,7 @@ export function POSDashboard() {
             setIsReceiptOpen(true);
 
             // Reset
-            setPatientName(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
+            setPatientName(''); setPatientAddress(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -323,6 +325,7 @@ export function POSDashboard() {
             const recordedSale = { 
                 id: saleId, 
                 patient_name: patientName, 
+                patient_address: patientAddress,
                 doctor_name: doctorName, 
                 amount: finalAmount, 
                 subtotal: cartTotal,
@@ -338,7 +341,7 @@ export function POSDashboard() {
             })));
             setIsReceiptOpen(true);
 
-            setCart([]); setPatientName(''); setDoctorName(''); setPharmacyDiscountPercent(''); setPharmacyDiscountedTotal('');
+            setCart([]); setPatientName(''); setPatientAddress(''); setDoctorName(''); setPharmacyDiscountPercent(''); setPharmacyDiscountedTotal('');
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -484,12 +487,18 @@ export function POSDashboard() {
                                 </div>
                                 <div className="p-5 sm:p-8">
                                     <form onSubmit={handleProcessConsultation} className="space-y-4 sm:space-y-6">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                                        <div className="grid grid-cols-1 gap-4 sm:gap-5">
                                             <div className="space-y-1.5 sm:space-y-2">
-                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Patient Name</Label>
-                                                <div className="relative">
-                                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">person</span>
-                                                    <Input required value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="e.g. John Doe" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Patient Details</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">person</span>
+                                                        <Input required value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="Patient Name*" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">location_on</span>
+                                                        <Input value={patientAddress} onChange={e => setPatientAddress(e.target.value)} placeholder="Patient Address" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="space-y-1.5 sm:space-y-2">
@@ -587,15 +596,26 @@ export function POSDashboard() {
                             </div>
 
                             <div className="space-y-2 sm:space-y-3">
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">person</span>
-                                    <input
-                                        className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium placeholder:font-normal"
-                                        placeholder="Patient Name*"
-                                        required
-                                        value={patientName}
-                                        onChange={e => setPatientName(e.target.value)}
-                                    />
+                                <div className="grid grid-cols-1 gap-2">
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">person</span>
+                                        <input
+                                            className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium placeholder:font-normal"
+                                            placeholder="Patient Name*"
+                                            required
+                                            value={patientName}
+                                            onChange={e => setPatientName(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">location_on</span>
+                                        <input
+                                            className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium placeholder:font-normal"
+                                            placeholder="Patient Address"
+                                            value={patientAddress}
+                                            onChange={e => setPatientAddress(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="relative">
                                     <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">stethoscope</span>

@@ -8,7 +8,9 @@
         "build": "tsc -b && vite build",
         "lint": "eslint .",
         "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-        "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch"
+        "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+        "video": "remotion preview videos/src/index.tsx",
+        "video:build": "remotion render videos/src/index.tsx HospitalDashboard videos/out/video.mp4"
     },
     "dependencies": {
         "@google/genai": "^1.43.0",
@@ -20,7 +22,11 @@
         "@radix-ui/react-slot": "^1.1.0",
         "@radix-ui/react-tabs": "^1.1.0",
         "@radix-ui/react-toast": "^1.2.1",
+        "@react-three/fiber": "8.16.8",
+        "@remotion/cli": "4.0.438",
+        "@remotion/three": "4.0.438",
         "@supabase/supabase-js": "^2.91.1",
+        "@types/three": "0.160.0",
         "class-variance-authority": "^0.7.0",
         "clsx": "^2.1.1",
         "dompurify": "^3.3.1",
@@ -32,8 +38,10 @@
         "react-ga4": "^2.1.0",
         "react-router-dom": "^7.13.1",
         "recharts": "^3.7.0",
+        "remotion": "4.0.438",
         "tailwind-merge": "^2.5.2",
         "tailwindcss-animate": "^1.0.7",
+        "three": "0.160.0",
         "xlsx": "^0.18.5"
     },
     "devDependencies": {

@@ -18,6 +18,10 @@ export interface DataService {
     invokeFunction: (name: string, options?: any) => Promise<any>;
     count: (table: string, filters?: any) => Promise<number>;
     subscribe: (table: string, callback: (payload: any) => void, event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*') => () => void;
+    // Financial Specifics
+    getFinancialLedger: (hospitalId: string, options: { startDate?: string; endDate?: string; clinicId?: string }) => Promise<any[]>;
+    getFinancialStatement: (hospitalId: string, type: 'PL' | 'BS', date: string) => Promise<any>;
+    updateAuditLock: (hospitalId: string, lockDate: string) => Promise<void>;
 }
 
 // Helper to normalize filters
@@ -161,6 +165,40 @@ class SupabaseService implements DataService {
         return () => {
             supabase.removeChannel(channel);
         };
+    }
+
+    async getFinancialLedger(hospitalId: string, options: { startDate?: string; endDate?: string; clinicId?: string }) {
+        let q = supabase.from('financial_ledger').select('*').eq('hospital_id', hospitalId);
+        if (options.clinicId && options.clinicId !== 'all') q = q.eq('clinic_id', options.clinicId);
+        if (options.startDate) q = q.gte('entry_date', options.startDate);
+        if (options.endDate) {
+            // To include all entries on the end date inclusive of its time, use the end of that day
+            q = q.lte('entry_date', `${options.endDate}T23:59:59.999Z`);
+        }
+        q = q.order('entry_date', { ascending: false });
+        const { data, error } = await q;
+        if (error) throw error;
+        return data || [];
+    }
+
+    async getFinancialStatement(hospitalId: string, type: 'PL' | 'BS', date: string) {
+        // We'll use a specialized RPC for this to ensure consistency and performance
+        const { data, error } = await supabase.rpc('get_financial_statement', {
+            p_hospital_id: hospitalId,
+            p_report_type: type,
+            p_as_of_date: date
+        });
+        if (error) throw error;
+        return data;
+    }
+
+    async updateAuditLock(hospitalId: string, lockDate: string) {
+        const { error } = await supabase
+            .from('financial_ledger')
+            .update({ audit_locked: true })
+            .eq('hospital_id', hospitalId)
+            .lte('entry_date', `${lockDate}T23:59:59.999Z`);
+        if (error) throw error;
     }
 }
 

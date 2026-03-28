@@ -14,6 +14,8 @@ import { TourProvider } from '@/context/TourContext';
 import { ProductTour } from '@/components/ProductTour';
 import { ResetPasswordPage } from "@/components/ResetPasswordPage";
 import { HospitalsRegistry } from '@/components/HospitalsRegistry';
+import { ExpensesDashboard } from './components/ExpensesDashboard';
+import { EquipmentsDashboard } from './components/EquipmentsDashboard';
 import { HospitalDetails } from '@/components/HospitalDetails';
 import { AuditLogs } from '@/components/AuditLogs';
 import { POSDashboard } from '@/components/POSDashboard';
@@ -22,6 +24,7 @@ import { ShiftManagement } from '@/components/ShiftManagement';
 import { HospitalShiftManagement } from '@/components/HospitalShiftManagement';
 import { EarningsDashboard } from '@/components/EarningsDashboard';
 import { SettingsDashboard } from '@/components/SettingsDashboard';
+import { CAFinancialSuite } from '@/components/CAFinancialSuite';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '@/pages/LandingPage';
 import { RegisterPage } from '@/components/RegisterPage';
@@ -46,7 +49,7 @@ import { authService } from '@/lib/authService'
 import { dataService } from '@/lib/dataService'
 
 // View types
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration'
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration' | 'expenses' | 'equipments' | 'ca-suite'
 
 const PageWrapper = ({ children }: { children: React.ReactNode }) => (
     <motion.div
@@ -306,6 +309,18 @@ function AppContent() {
                                 <SubscriptionDashboard />
                             )}
                         </div>
+                    )}
+
+                    {view === 'expenses' && (
+                        <ExpensesDashboard />
+                    )}
+
+                    {view === 'equipments' && (
+                        <EquipmentsDashboard />
+                    )}
+
+                    {view === 'ca-suite' && (
+                        <CAFinancialSuite />
                     )}
 
                     {view === 'settings' && (
