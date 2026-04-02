@@ -119,7 +119,7 @@ export function IPDDashboard() {
     const [isBillModalOpen, setIsBillModalOpen] = useState(false);
     const [billAdmission, setBillAdmission] = useState<Admission | null>(null);
     const [billItems, setBillItems] = useState<any[]>([]);
-    const [isFetchingBill, setIsFetchingBill] = useState(false);
+    const [isFetchingBill, _setIsFetchingBill] = useState(false);
     // Misc Expense Form State
     const [miscExpenseName, setMiscExpenseName] = useState('');
     const [miscExpenseAmount, setMiscExpenseAmount] = useState('');
