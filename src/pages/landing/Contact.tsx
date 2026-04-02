@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Send, CheckCircle2, Loader2 } from 'lucide-react';
+import { Mail, Send, CheckCircle2, Loader2, Phone } from 'lucide-react';
 
 const Contact: React.FC = () => {
   const [formState, setFormState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -109,6 +109,16 @@ const Contact: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-lg text-slate-100 mb-0.5">Contact via Email</h4>
                     <p className="text-blue-400 font-semibold tracking-wide">aarogyanidhi01@gmail.com</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-6 items-center p-4 rounded-3xl bg-white/5 border border-white/10 hover:border-blue-500/30 hover:bg-white/10 transition-all duration-300 group/item">
+                  <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400 group-hover/item:scale-110 transition-transform duration-500">
+                    <Phone className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg text-slate-100 mb-0.5">Contact via Phone</h4>
+                    <p className="text-blue-400 font-semibold tracking-wide">+91 87969 12201</p>
                   </div>
                 </div>
 
