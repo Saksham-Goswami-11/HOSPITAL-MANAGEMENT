@@ -1,5 +1,4 @@
-/// <reference path="../_types.d.ts" />
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "functions-js-types";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -46,7 +45,7 @@ Deno.serve(async (req: Request) => {
 
         console.log('Authenticated User:', user.id, user.email);
 
-        const { action, hospitalId, requestId, approve, plan_slug, billing_cycle } = await req.json();
+        const { action, hospitalId, requestId, approve, plan_slug: _plan_slug, billing_cycle: _billing_cycle } = await req.json();
         console.log('Action:', action, 'Hospital:', hospitalId, 'Request:', requestId);
 
         // Get user profile
@@ -231,10 +230,11 @@ Deno.serve(async (req: Request) => {
                     { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Manage subscription error:', error);
+        const message = error instanceof Error ? error.message : 'Internal server error';
         return new Response(
-            JSON.stringify({ error: error.message || 'Internal server error' }),
+            JSON.stringify({ error: message }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }

@@ -56,16 +56,25 @@ function TransactionTable({ sales, clinics }: { sales: any[], clinics: any[] }) 
                                         ? 'bg-blue-100 text-blue-700'
                                         : sale.sale_type === 'SERVICE'
                                             ? 'bg-emerald-100 text-emerald-700'
-                                            : 'bg-purple-100 text-purple-700'
+                                            : sale.sale_type?.startsWith('IPD')
+                                                ? 'bg-indigo-100 text-indigo-700'
+                                                : 'bg-purple-100 text-purple-700'
                                         }`}>
-                                        {sale.sale_type}
+                                        {sale.sale_type?.replace(/_/g, ' ')}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono font-bold text-slate-900">
-                                    ₹{sale.amount?.toLocaleString()}
+                                    <span className={sale.payment_mode === 'IPD_BILL' ? 'text-slate-400 font-normal italic' : ''}>
+                                        ₹{sale.amount?.toLocaleString()}
+                                    </span>
                                 </td>
-                                <td className="px-4 py-3 text-slate-600 italic">
-                                    {sale.payment_mode}
+                                <td className="px-4 py-3">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${sale.payment_mode === 'IPD_BILL'
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                                        }`}>
+                                        {sale.payment_mode === 'IPD_BILL' ? 'CREDIT / ON BILL' : sale.payment_mode}
+                                    </span>
                                 </td>
                                 <td className="px-4 py-3 text-right text-slate-500 text-xs">
                                     {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -123,33 +132,43 @@ export function EarningsDashboard() {
         let total = 0;
         let consultancy = 0;
         let pharmacy = 0;
+        let ipd = 0;
 
-        const clinicStats: Record<string, { total: number, consultancy: number, pharmacy: number, transactions: number }> = {};
+        const clinicStats: Record<string, { total: number, consultancy: number, pharmacy: number, ipd: number, transactions: number }> = {};
 
         // Initialize clinic stats
         clinics.forEach(c => {
-            clinicStats[c.id] = { total: 0, consultancy: 0, pharmacy: 0, transactions: 0 };
+            clinicStats[c.id] = { total: 0, consultancy: 0, pharmacy: 0, ipd: 0, transactions: 0 };
         });
 
         sales.forEach(sale => {
-            const amount = sale.amount || 0;
-            const type = sale.sale_type; // e.g., 'CONSULTATION', 'PHARMACY'
+            const amount = Number(sale.amount) || 0;
+            const type = sale.sale_type;
             const cid = sale.clinic_id;
+            const isBill = sale.payment_mode === 'IPD_BILL';
 
-            total += amount;
+            // Only add to revenue metrics if it's NOT an IPD_BILL (credit)
+            if (!isBill) {
+                total += amount;
 
-            // Assume "CONSULTATION" is doc fees, everything else (PHARMACY/INVENTORY) is pharmacy
-            // You can adjust these string matches to fit your exact DB ENUMs
-            if (type === 'CONSULTATION' || type === 'SERVICE') {
-                consultancy += amount;
-                if (clinicStats[cid]) clinicStats[cid].consultancy += amount;
-            } else {
-                pharmacy += amount;
-                if (clinicStats[cid]) clinicStats[cid].pharmacy += amount;
+                if (type === 'CONSULTATION' || type === 'SERVICE') {
+                    consultancy += amount;
+                    if (clinicStats[cid]) clinicStats[cid].consultancy += amount;
+                } else if (type?.startsWith('IPD')) {
+                    ipd += amount;
+                    if (clinicStats[cid]) clinicStats[cid].ipd += amount;
+                } else {
+                    pharmacy += amount;
+                    if (clinicStats[cid]) clinicStats[cid].pharmacy += amount;
+                }
+
+                if (clinicStats[cid]) {
+                    clinicStats[cid].total += amount;
+                }
             }
 
+            // Always count the transaction itself
             if (clinicStats[cid]) {
-                clinicStats[cid].total += amount;
                 clinicStats[cid].transactions += 1;
             }
         });
@@ -158,6 +177,7 @@ export function EarningsDashboard() {
             total,
             consultancy,
             pharmacy,
+            ipd,
             clinicStats
         };
     }, [sales, clinics]);
@@ -184,6 +204,7 @@ export function EarningsDashboard() {
             ["Total Revenue", metrics.total],
             ["Consultancy", metrics.consultancy],
             ["Pharmacy", metrics.pharmacy],
+            ["IPD (Admissions)", metrics.ipd],
             [""],
             ["Clinic Breakdown", "Transactions", "Total Revenue (Rs.)"]
         ];
@@ -231,6 +252,7 @@ export function EarningsDashboard() {
         doc.setFontSize(11);
         doc.text(`Consultancy: Rs. ${metrics.consultancy.toLocaleString()}`, 10, 50);
         doc.text(`Pharmacy: Rs. ${metrics.pharmacy.toLocaleString()}`, 10, 60);
+        doc.text(`IPD (In-Patient): Rs. ${metrics.ipd.toLocaleString()}`, 10, 70);
 
         let y = 80;
         doc.setFontSize(14);
@@ -389,7 +411,7 @@ export function EarningsDashboard() {
             ) : (
                 <>
                     {/* Top KPI Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {/* Total Revenue Modal */}
                         <Dialog>
                             <DialogTrigger asChild>
@@ -479,7 +501,40 @@ export function EarningsDashboard() {
                                 </DialogHeader>
                                 <div className="flex-1 overflow-y-auto p-6 pt-0">
                                     <TransactionTable
-                                        sales={displayedSales.filter(s => s.sale_type !== 'CONSULTATION' && s.sale_type !== 'SERVICE')}
+                                        sales={displayedSales.filter(s => s.sale_type !== 'CONSULTATION' && s.sale_type !== 'SERVICE' && !s.sale_type?.startsWith('IPD'))}
+                                        clinics={clinics}
+                                    />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* IPD Revenue Modal */}
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Card className="border border-slate-200 shadow-sm bg-white overflow-hidden group cursor-pointer hover:ring-2 hover:ring-indigo-500/20 transition-all border-l-4 border-l-indigo-500">
+                                    <CardContent className="p-6">
+                                        <div className="flex items-center justify-between pb-2">
+                                            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">IPD Revenue</h3>
+                                            <Building2 className="w-5 h-5 text-indigo-500 bg-indigo-50 p-1 rounded-md" />
+                                        </div>
+                                        <div className="text-3xl font-bold text-slate-900 text-indigo-900 group-hover:scale-105 transition-transform origin-left">
+                                            ₹{metrics.ipd.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-indigo-600/70 mt-2 font-medium flex justify-between">
+                                            <span>Advances & Settlements</span>
+                                            <span>{metrics.total > 0 ? Math.round((metrics.ipd / metrics.total) * 100) : 0}%</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col p-0 text-slate-900">
+                                <DialogHeader className="p-6 pb-4 border-b text-indigo-900 px-4">
+                                    <DialogTitle>IPD Revenue Ledger</DialogTitle>
+                                    <p className="text-sm text-indigo-600/70">Breakdown of IPD admissions and bill settlements.</p>
+                                </DialogHeader>
+                                <div className="flex-1 overflow-y-auto p-6 pt-0 px-4">
+                                    <TransactionTable
+                                        sales={displayedSales.filter(s => s.sale_type?.startsWith('IPD'))}
                                         clinics={clinics}
                                     />
                                 </div>
@@ -505,6 +560,7 @@ export function EarningsDashboard() {
                                             <th className="px-6 py-4 text-right">Transactions</th>
                                             <th className="px-6 py-4 text-right">Consultancy (₹)</th>
                                             <th className="px-6 py-4 text-right">Pharmacy (₹)</th>
+                                            <th className="px-6 py-4 text-right">IPD (₹)</th>
                                             <th className="px-6 py-4 text-right font-bold text-slate-900">Total Revenue (₹)</th>
                                             <th className="px-6 py-4 text-center">Split</th>
                                         </tr>
@@ -512,10 +568,11 @@ export function EarningsDashboard() {
                                     <tbody className="divide-y divide-slate-100 pb-4">
                                         {clinics.map(clinic => {
                                             const stats = metrics.clinicStats[clinic.id];
-                                            if (!stats || stats.total === 0) return null; // Hide empty clinics for cleaner view
+                                            if (!stats || stats.total === 0) return null;
 
                                             const consPct = stats.total > 0 ? (stats.consultancy / stats.total) * 100 : 0;
                                             const pharmPct = stats.total > 0 ? (stats.pharmacy / stats.total) * 100 : 0;
+                                            const ipdPct = stats.total > 0 ? (stats.ipd / stats.total) * 100 : 0;
 
                                             return (
                                                 <tr key={clinic.id} className="hover:bg-slate-50/50 transition-colors">
@@ -523,12 +580,14 @@ export function EarningsDashboard() {
                                                     <td className="px-6 py-4 text-right text-slate-500">{stats.transactions}</td>
                                                     <td className="px-6 py-4 text-right text-blue-600 font-medium">{stats.consultancy.toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-right text-purple-600 font-medium">{stats.pharmacy.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right text-indigo-600 font-medium">{stats.ipd.toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-right font-bold text-emerald-600 text-lg">
                                                         {stats.total.toLocaleString()}
                                                     </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex h-2 w-full bg-slate-100 rounded-full overflow-hidden" title={`Consultancy: ${Math.round(consPct)}% | Pharmacy: ${Math.round(pharmPct)}%`}>
+                                                    <td className="px-6 py-4 w-48">
+                                                        <div className="flex h-2 w-full bg-slate-100 rounded-full overflow-hidden" title={`OPD: ${Math.round(consPct)}% | Pharmacy: ${Math.round(pharmPct)}% | IPD: ${Math.round(ipdPct)}%`}>
                                                             <div style={{ width: `${consPct}%` }} className="bg-blue-500"></div>
+                                                            <div style={{ width: `${ipdPct}%` }} className="bg-indigo-500"></div>
                                                             <div style={{ width: `${pharmPct}%` }} className="bg-purple-500"></div>
                                                         </div>
                                                     </td>

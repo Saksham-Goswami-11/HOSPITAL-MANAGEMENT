@@ -91,6 +91,7 @@ interface HospitalContextType {
     markNotificationsAsSeen: () => void;
     revenueSummary: any[];
     expiringItems: any[];
+    activeIPDCount: number;
     fetchDashboardStats: (hospitalId?: string, clinicsOverride?: Clinic[]) => Promise<void>;
 }
 
@@ -111,6 +112,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
     const [lastSeenAt, setLastSeenAt] = useState<string>(() => localStorage.getItem('last_seen_notifications_at') || '2000-01-01T00:00:00.000Z');
     const [revenueSummary, setRevenueSummary] = useState<any[]>([]);
     const [expiringItems, setExpiringItems] = useState<any[]>([]);
+    const [activeIPDCount, setActiveIPDCount] = useState(0);
 
     const rawBilling = useSubscription(profile?.hospital_id);
 
@@ -342,18 +344,29 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
 
             // 2. Revenue Summary - Querying sales directly for reliability
             // The view admin_revenue_summary has internal filters that might fail for some users
-            const todaySales = await db.list('sales', {
-                filters: [
-                    { column: 'hospital_id', operator: '==', value: hId },
-                    { column: 'timestamp', operator: '>=', value: startOfToday }
-                ]
-            });
+            const [todaySales, activeAdmissions] = await Promise.all([
+                db.list('sales', {
+                    filters: [
+                        { column: 'hospital_id', operator: '==', value: hId },
+                        { column: 'timestamp', operator: '>=', value: startOfToday }
+                    ]
+                }),
+                db.list('ipd_admissions', {
+                    filters: [
+                        { column: 'hospital_id', operator: '==', value: hId },
+                        { column: 'status', operator: '==', value: 'admitted' }
+                    ]
+                })
+            ]);
+
+            setActiveIPDCount(activeAdmissions.length);
 
             // Aggregate sales by clinic to mimic the view structure
             // View structure: { clinic_id, clinic_name, total_revenue, transaction_count, revenue_date }
             // Using clinicsOverride || clinics to solve race condition for 'Unknown Clinic'
             const effectiveClinics = clinicsOverride || clinics;
-            const aggregated = todaySales.reduce((acc: any, sale: any) => {
+            const itemsToInclude = todaySales;
+            const aggregated = itemsToInclude.reduce((acc: any, sale: any) => {
                 const clinicId = sale.clinic_id;
                 if (!acc[clinicId]) {
                     const clinic = effectiveClinics.find(c => c.id === clinicId);
@@ -362,11 +375,27 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                         clinic_name: clinic?.name || 'Unknown Clinic',
                         total_revenue: 0,
                         transaction_count: 0,
-                        revenue_date: startOfToday.split('T')[0]
+                        revenue_date: startOfToday.split('T')[0],
+                        // Added category breakdown for better dashboard UI
+                        opd_revenue: 0,
+                        pharma_revenue: 0,
+                        ipd_revenue: 0
                     };
                 }
-                acc[clinicId].total_revenue += Number(sale.amount);
+                const amount = Number(sale.amount);
+                acc[clinicId].total_revenue += amount;
                 acc[clinicId].transaction_count += 1;
+
+                // Simple categorization for dashboard tooltips/small charts
+                const type = sale.sale_type || '';
+                if (type === 'CONSULTATION' || type === 'SERVICE') {
+                    acc[clinicId].opd_revenue += amount;
+                } else if (type.startsWith('IPD')) {
+                    acc[clinicId].ipd_revenue += amount;
+                } else {
+                    acc[clinicId].pharma_revenue += amount;
+                }
+
                 return acc;
             }, {});
 
@@ -400,6 +429,12 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
                         icon: isConsultation ? '/stethoscope.png' : '/medication.png'
                     });
                 }
+            }, '*'),
+
+            // Handle IPD admissions for stats update
+            db.subscribe('ipd_admissions', (adm) => {
+                if (adm.hospital_id !== profile.hospital_id) return;
+                fetchDashboardStats(profile.hospital_id);
             }, '*'),
 
             // Handle inventory changes
@@ -571,6 +606,7 @@ export function HospitalProvider({ children }: { children: ReactNode }) {
             markNotificationsAsSeen,
             revenueSummary,
             expiringItems,
+            activeIPDCount,
             fetchDashboardStats
         }}
         >

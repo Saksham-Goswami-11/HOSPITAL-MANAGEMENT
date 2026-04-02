@@ -224,6 +224,13 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 disabled={lockNavigation}
                             />
                             <NavItem
+                                icon="hotel"
+                                label="IPD Management"
+                                active={view === 'ipd'}
+                                onClick={() => setView('ipd')}
+                                disabled={lockNavigation}
+                            />
+                            <NavItem
                                 icon="account_balance"
                                 label="Finance Suite"
                                 active={view === 'ca-suite'}
@@ -277,6 +284,13 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                                 onClick={() => setView('inventory-dashboard')}
                                 disabled={false}
                             />
+                            <NavItem
+                                icon="hotel"
+                                label="IPD Management"
+                                active={view === 'ipd'}
+                                onClick={() => setView('ipd')}
+                                disabled={false}
+                            />
                         </>
                     )}
 
@@ -325,6 +339,36 @@ export function AppLayout({ children, onLogout, view, setView, lockNavigation = 
                             <NavItem
                                 icon="inventory"
                                 label="Inventory"
+                                active={view === 'inventory-dashboard'}
+                                onClick={() => setView('inventory-dashboard')}
+                            />
+                        </>
+                    )}
+
+                    {/* DOCTOR MENU */}
+                    {role === 'DOCTOR' && (
+                        <>
+                            <NavItem
+                                icon="dashboard"
+                                label="Hospital HQ"
+                                active={view === 'admin'}
+                                onClick={() => setView('admin')}
+                            />
+                            <NavItem
+                                icon="hotel"
+                                label="IPD Management"
+                                active={view === 'ipd'}
+                                onClick={() => setView('ipd')}
+                            />
+                            <NavItem
+                                icon="point_of_sale"
+                                label="Billing & POS"
+                                active={view === 'pos'}
+                                onClick={() => setView('pos')}
+                            />
+                            <NavItem
+                                icon="inventory"
+                                label="Inventory View"
                                 active={view === 'inventory-dashboard'}
                                 onClick={() => setView('inventory-dashboard')}
                             />

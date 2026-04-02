@@ -24,6 +24,7 @@
         "@radix-ui/react-toast": "^1.2.1",
         "@react-three/fiber": "8.16.8",
         "@remotion/cli": "4.0.438",
+        "@remotion/tailwind": "^4.0.438",
         "@remotion/three": "4.0.438",
         "@supabase/supabase-js": "^2.91.1",
         "@types/three": "0.160.0",

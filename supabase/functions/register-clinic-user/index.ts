@@ -1,5 +1,4 @@
-/// <reference path="../_types.d.ts" />
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "functions-js-types";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -83,9 +82,10 @@ Deno.serve(async (req: Request) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: message }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }

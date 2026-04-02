@@ -33,6 +33,9 @@ export function useBillingActions() {
             // Call create-checkout Edge Function
             const res = await db.invokeFunction('create-checkout', {
                 body: { plan_slug: planSlug, billing_cycle: billingCycle },
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                },
             });
 
             if (res.error) {
@@ -134,8 +137,12 @@ export function useBillingActions() {
     const cancelSubscription = async (onSuccess?: () => void) => {
         setLoading(true);
         try {
+            const session = await auth.getSession();
             const res = await db.invokeFunction('manage-subscription', {
                 body: { action: 'cancel' },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                },
             });
 
             if (res.error) throw new Error(res.error.message);
@@ -157,8 +164,12 @@ export function useBillingActions() {
     const switchPlan = async (planSlug: string, billingCycle?: string, onSuccess?: () => void) => {
         setLoading(true);
         try {
+            const session = await auth.getSession();
             const res = await db.invokeFunction('manage-subscription', {
                 body: { action: 'switch_plan', plan_slug: planSlug, billing_cycle: billingCycle },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                },
             });
 
             if (res.error) throw new Error(res.error.message);

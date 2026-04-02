@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
 import { CardDescription } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
 
-type POSView = 'pharmacy' | 'consultation';
+type POSView = 'pharmacy' | 'consultation' | 'ipd';
 
-export function POSDashboard() {
+export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void }) {
     const { profile, clinics, inventory, billing } = useHospital();
     const { toast } = useToast();
 
@@ -20,6 +20,7 @@ export function POSDashboard() {
 
     // Form States
     const [patientName, setPatientName] = useState('');
+    const [patientPhone, setPatientPhone] = useState('');
     const [patientAddress, setPatientAddress] = useState('');
     const [doctorName, setDoctorName] = useState('');
     const [paymentMode, setPaymentMode] = useState('Cash');
@@ -59,6 +60,20 @@ export function POSDashboard() {
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [mobileSearchQuery, setMobileSearchQuery] = useState('');
 
+    // IPD States
+    const [wards, setWards] = useState<any[]>([]);
+    const [beds, setBeds] = useState<any[]>([]);
+    const [doctors, setDoctors] = useState<any[]>([]);
+    const [selectedBedId, setSelectedBedId] = useState('');
+    const [selectedWardId, setSelectedWardId] = useState('');
+    const [selectedDoctorId, setSelectedDoctorId] = useState('');
+    const [admissionAdvance, setAdmissionAdvance] = useState('');
+    const [ipdReason, setIpdReason] = useState('');
+
+    // IPD Linking
+    const [activeAdmissions, setActiveAdmissions] = useState<any[]>([]);
+    const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(null);
+
     // derived
     const activeClinic = clinics.find(c => c.id === selectedClinicId);
 
@@ -86,6 +101,82 @@ export function POSDashboard() {
         }
     }, [profile]);
 
+    const fetchIPDData = async () => {
+        if (!profile?.hospital_id) return;
+        try {
+            const hId = profile.hospital_id;
+            const [wardsData, bedsData, doctorsData, activeAdmissionsData] = await Promise.all([
+                db.list('wards', { filters: [{ field: 'hospital_id', operator: '==', value: hId }] }),
+                db.list('beds', { filters: [{ field: 'status', operator: '==', value: 'available' }] }),
+                db.list('staff_details', { filters: [{ field: 'hospital_id', operator: '==', value: hId }, { field: 'role', operator: '==', value: 'DOCTOR' }] }),
+                db.list('ipd_admissions', { 
+                    filters: [
+                        { field: 'hospital_id', operator: '==', value: hId },
+                        { field: 'status', operator: '==', value: 'admitted' }
+                    ],
+                    select: '*, patient:patient_id(full_name), bed:bed_id(bed_number, ward:ward_id(name))'
+                })
+            ]);
+            
+            // Filter beds to only those belonging to the hospital's wards
+            const wardIds = wardsData.map((w: any) => w.id);
+            const filteredBeds = bedsData.filter((b: any) => wardIds.includes(b.ward_id));
+
+            setWards(wardsData);
+            setBeds(filteredBeds);
+            setDoctors(doctorsData);
+            setActiveAdmissions(activeAdmissionsData);
+        } catch (error) {
+            console.error('IPD Data error:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (view === 'ipd' || view === 'pharmacy' || view === 'consultation') {
+            fetchIPDData();
+        }
+    }, [view, profile?.hospital_id]);
+
+    const ensurePatientExists = async (name: string, phone?: string, address?: string) => {
+        if (!profile?.hospital_id || !name) return null;
+        try {
+            // Check if patient exists by name and phone
+            const existing = await db.list('patients', {
+                filters: [
+                    { field: 'hospital_id', operator: '==', value: profile.hospital_id },
+                    { field: 'full_name', operator: '==', value: name },
+                    ...(phone ? [{ field: 'contact_number', operator: '==', value: phone }] : [])
+                ],
+                limit: 1
+            });
+
+            if (existing.length > 0) {
+                const p = existing[0];
+                // Update if missing phone or address
+                if ((phone && !p.contact_number) || (address && !p.address)) {
+                    await db.update('patients', p.id, {
+                        contact_number: p.contact_number || phone || '',
+                        address: p.address || address || ''
+                    });
+                }
+                return p.id;
+            }
+
+            // Create new patient if doesn't exist
+            const newPatient = await db.create('patients', {
+                hospital_id: profile.hospital_id,
+                full_name: name,
+                contact_number: phone || '',
+                address: address || '',
+                status: 'active'
+            });
+            return newPatient.id;
+        } catch (error) {
+            console.error('Failed to ensure patient:', error);
+            return null;
+        }
+    };
+
     const handleProcessConsultation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedClinicId) return;
@@ -107,6 +198,10 @@ export function POSDashboard() {
             const discountPercent = parseFloat(consultationDiscountPercent) || 0;
             const finalAmount = consultationDiscountedFee !== '' ? parseFloat(consultationDiscountedFee) : amount;
 
+            // 1. Ensure patient exists in registry
+            const pId = await ensurePatientExists(patientName, patientPhone, patientAddress);
+            
+            // 2. Process sale via RPC
             const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
@@ -117,7 +212,9 @@ export function POSDashboard() {
                 p_amount: finalAmount,
                 p_subtotal: amount,
                 p_discount_percentage: discountPercent,
-                p_items: [] // No inventory items for consultation
+                p_items: [], // No inventory items for consultation
+                p_admission_id: selectedAdmissionId,
+                p_patient_id: pId // Pass permanent patient ID
             });
 
             toast({ title: 'Success', description: 'Consultation Recorded.', className: 'bg-green-50 border-green-200 text-green-900' });
@@ -139,7 +236,7 @@ export function POSDashboard() {
             setIsReceiptOpen(true);
 
             // Reset
-            setPatientName(''); setPatientAddress(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
+            setPatientName(''); setPatientPhone(''); setPatientAddress(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -307,6 +404,10 @@ export function POSDashboard() {
                 units_sold: c.quantity
             }));
 
+            // 1. Ensure patient exists in registry
+            const pId = await ensurePatientExists(patientName, patientPhone, patientAddress);
+            
+            // 2. Process sale via RPC
             const saleId = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
@@ -317,7 +418,9 @@ export function POSDashboard() {
                 p_amount: finalAmount,
                 p_subtotal: cartTotal,
                 p_discount_percentage: discountPercent,
-                p_items: saleItems
+                p_items: saleItems,
+                p_admission_id: selectedAdmissionId,
+                p_patient_id: pId // Pass permanent patient ID
             });
 
             toast({ title: 'Success', description: 'Pharmacy Checkout Complete.', className: 'bg-green-50 border-green-200 text-green-900' });
@@ -349,6 +452,85 @@ export function POSDashboard() {
             setIsProcessing(false);
         }
     }
+
+    const handleProcessIPDAdmission = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!profile?.hospital_id || !selectedBedId || !selectedDoctorId || !patientName) {
+            toast({ title: 'Missing Information', description: 'Please fill in all admission details.', variant: 'destructive' });
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const hId = profile.hospital_id;
+            const advance = parseFloat(admissionAdvance) || 0;
+
+            // 0. Ensure Patient Exists
+            const registeredPatientId = await ensurePatientExists(patientName, patientPhone, patientAddress);
+
+            // 1. Create IPD Admission
+            const admission = await db.create('ipd_admissions', {
+                hospital_id: hId,
+                clinic_id: selectedClinicId,
+                patient_id: registeredPatientId,
+                bed_id: selectedBedId,
+                admitting_doctor_id: selectedDoctorId,
+                admission_date: new Date().toISOString(),
+                status: 'admitted',
+                reason_for_admission: ipdReason,
+                advance_paid: advance,
+                temp_patient_name: patientName,
+                temp_patient_phone: patientPhone,
+                temp_patient_address: patientAddress
+            });
+
+            // 2. Update Bed Status
+            await db.update('beds', selectedBedId, { status: 'occupied' });
+
+            // 3. Record Sale (Advance Payment)
+            if (advance > 0) {
+                const saleId = await db.callRpc('process_sale', {
+                    p_hospital_id: hId,
+                    p_clinic_id: selectedClinicId,
+                    p_patient_name: patientName,
+                    p_doctor_name: doctors.find(d => d.id === selectedDoctorId)?.full_name || 'Assigned Doctor',
+                    p_sale_type: 'IPD',
+                    p_payment_mode: paymentMode,
+                    p_amount: advance,
+                    p_subtotal: advance,
+                    p_discount_percentage: 0,
+                    p_items: [], // Placeholder item or empty
+                    p_admission_id: admission.id,
+                    p_patient_id: registeredPatientId
+                });
+
+                const recordedSale = { 
+                    id: saleId, 
+                    patient_name: patientName, 
+                    doctor_name: doctors.find(d => d.id === selectedDoctorId)?.full_name,
+                    amount: advance, 
+                    subtotal: advance,
+                    discount_percentage: 0,
+                    payment_mode: paymentMode, 
+                    sale_type: 'IPD ADMISSION' 
+                };
+                setLastSaleData(recordedSale);
+                setLastSaleItems([{ item_name: 'Admission Advance Deposit', quantity: 1, price: advance }]);
+                setIsReceiptOpen(true);
+            }
+
+            toast({ title: 'Admission Successful', description: `Patient admitted at ${new Date().toLocaleTimeString()}.`, className: 'bg-green-50 border-green-200 text-green-900' });
+            
+            // Clean up
+            setPatientName(''); setPatientPhone(''); setPatientAddress(''); setAdmissionAdvance(''); setIpdReason(''); setSelectedBedId(''); setSelectedWardId(''); setSelectedDoctorId('');
+            fetchIPDData(); // Refresh beds list
+
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
     if (!selectedClinicId) {
         return (
@@ -417,6 +599,11 @@ export function POSDashboard() {
                     <button onClick={() => setView('consultation')} className={`flex items-center whitespace-nowrap gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-medium transition-all group ${view === 'consultation' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-50 lg:bg-transparent hover:bg-slate-50 text-slate-600'}`}>
                         <span className={`material-symbols-outlined text-[18px] sm:text-[24px] ${view === 'consultation' ? '' : 'group-hover:text-blue-600'}`}>stethoscope</span>
                         <span>OPD Consultation</span>
+                    </button>
+
+                    <button onClick={() => setView('ipd')} className={`flex items-center whitespace-nowrap gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-medium transition-all group ${view === 'ipd' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-50 lg:bg-transparent hover:bg-slate-50 text-slate-600'}`}>
+                        <span className={`material-symbols-outlined text-[18px] sm:text-[24px] ${view === 'ipd' ? '' : 'group-hover:text-blue-600'}`}>hotel</span>
+                        <span>IPD Admission</span>
                     </button>
 
                     <div className="hidden lg:block mt-auto border-t border-slate-100 pt-4">
@@ -489,6 +676,45 @@ export function POSDashboard() {
                                     <form onSubmit={handleProcessConsultation} className="space-y-4 sm:space-y-6">
                                         <div className="grid grid-cols-1 gap-4 sm:gap-5">
                                             <div className="space-y-1.5 sm:space-y-2">
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Admitted Patient (Optional)</Label>
+                                                <div className="relative">
+                                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] z-10">hotel</span>
+                                                    <select 
+                                                        value={selectedAdmissionId || ''} 
+                                                        onChange={e => {
+                                                            const admId = e.target.value;
+                                                            setSelectedAdmissionId(admId || null);
+                                                            if (admId) {
+                                                                const adm = activeAdmissions.find((a: any) => a.id === admId);
+                                                                if (adm) {
+                                                                    setPatientName(adm.temp_patient_name || adm.patient?.full_name || '');
+                                                                    setPatientPhone(adm.temp_patient_phone || adm.patient?.contact_number || '');
+                                                                    setPatientAddress(adm.temp_patient_address || '');
+                                                                    // Set doctor name if available
+                                                                    const doc = doctors.find((d: any) => d.id === adm.admitting_doctor_id);
+                                                                    if (doc) setDoctorName(doc.full_name || '');
+                                                                    else if (adm.staff_details?.full_name) setDoctorName(adm.staff_details.full_name);
+                                                                    setPaymentMode('IPD_BILL');
+                                                                }
+                                                            } else {
+                                                                setPaymentMode('Cash');
+                                                            }
+                                                        }}
+                                                        className="w-full flex h-10 sm:h-11 rounded-md border border-slate-200 bg-blue-50/30 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent pl-10"
+                                                    >
+                                                        <option value="">-- Link to Admitted Patient --</option>
+                                                        {activeAdmissions.map((a: any) => (
+                                                            <option key={a.id} value={a.id}>
+                                                                {a.temp_patient_name || a.patient?.full_name} 
+                                                                {a.bed?.ward?.name ? ` (Ward: ${a.bed.ward.name})` : ''}
+                                                                {a.bed?.bed_number ? ` - Bed ${a.bed.bed_number}` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5 sm:space-y-2">
                                                 <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Patient Details</Label>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="relative">
@@ -496,89 +722,210 @@ export function POSDashboard() {
                                                         <Input required value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="Patient Name*" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
                                                     </div>
                                                     <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">call</span>
+                                                        <Input value={patientPhone} onChange={e => setPatientPhone(e.target.value)} placeholder="Patient Phone" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">location_on</span>                                                         <Input value={patientAddress} onChange={e => setPatientAddress(e.target.value)} placeholder="Patient Address" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5 sm:space-y-2">
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Consultation Info</Label>
+                                                <div className="relative">
+                                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">medical_services</span>
+                                                    <select
+                                                        className="w-full h-10 sm:h-11 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent pl-10 appearance-none"
+                                                        required
+                                                        value={doctorName}
+                                                        onChange={e => setDoctorName(e.target.value)}
+                                                    >
+                                                        <option value="">Select Consulting Doctor*</option>
+                                                        {doctors.map((d: any) => (
+                                                            <option key={d.id} value={d.full_name}>{d.full_name}</option>
+                                                        ))}
+                                                        {!doctors.some((d: any) => d.full_name === doctorName) && doctorName && (
+                                                            <option value={doctorName}>{doctorName}</option>
+                                                        )}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <div className="flex items-center justify-between mb-3 px-1">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Consultation Fee</span>
+                                                <span className="text-sm font-bold text-blue-600">₹{consultationDiscountedFee || '0'}</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="relative">
+                                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[16px]">payments</span>
+                                                     <Input type="number" value={consultationFee} onChange={e => setConsultationFee(e.target.value)} placeholder="Fee Amount (₹)" className="pl-9 h-10 bg-slate-50 border-slate-100 text-sm" />
+                                                </div>
+                                                <div className="relative">
+                                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[16px]">percent</span>
+                                                     <Input type="number" value={consultationDiscountPercent} onChange={e => setConsultationDiscountPercent(e.target.value)} placeholder="Discount %" className="pl-9 h-10 bg-slate-50 border-slate-100 text-sm" />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-3 pt-2">
+                                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Payment Method</Label>
+                                            <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
+                                                {['Cash', 'UPI', 'Card', ...(selectedAdmissionId ? ['IPD_BILL'] : [])].map((m) => (
+                                                    <button key={m} type="button" onClick={() => setPaymentMode(m)} className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${paymentMode === m ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' : 'text-slate-400 hover:text-slate-600'}`}>{m}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <Button type="submit" disabled={isProcessing} className="w-full h-11 sm:h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2">
+                                            {isProcessing ? <Loader2 className="animate-spin" /> : <><span className="material-symbols-outlined">print</span> Print Reciept & Complete</>}
+                                        </Button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* IPD ADMISSION VIEW */}
+                    {view === 'ipd' && (
+                        <div className="flex-1 flex flex-col items-center justify-start py-6 sm:py-12 px-3 sm:px-6 overflow-y-auto w-full">
+                            <div className="w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm sm:shadow-xl">
+                                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 sm:p-8 text-white relative overflow-hidden">
+                                    <span className="material-symbols-outlined absolute -right-2 sm:-right-4 -bottom-2 sm:-bottom-4 text-[80px] sm:text-[120px] opacity-10">hotel</span>
+                                    <h2 className="text-lg sm:text-2xl font-bold relative z-10 flex items-center gap-2"><span className="material-symbols-outlined">hotel</span> Hospital IPD Admission</h2>
+                                    <p className="text-indigo-100 mt-1 relative z-10 text-xs sm:text-base">Admit patient to hospital ward and process initial deposit.</p>
+                                </div>
+                                <div className="p-5 sm:p-8">
+                                    <form onSubmit={handleProcessIPDAdmission} className="space-y-4 sm:space-y-6">
+                                        <div className="grid grid-cols-1 gap-4 sm:gap-5">
+                                            <div className="space-y-1.5 sm:space-y-2">
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Patient Details</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">person</span>
+                                                        <Input required value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="Patient Name*" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">call</span>
+                                                        <Input value={patientPhone} onChange={e => setPatientPhone(e.target.value)} placeholder="Patient Phone" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
+                                                    </div>
+                                                    <div className="relative">
                                                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">location_on</span>
                                                         <Input value={patientAddress} onChange={e => setPatientAddress(e.target.value)} placeholder="Patient Address" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="space-y-1.5 sm:space-y-2">
-                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Attending Doctor</Label>
-                                                <div className="relative">
-                                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">badge</span>
-                                                    <Input required value={doctorName} onChange={e => setDoctorName(e.target.value)} placeholder="e.g. Dr. Smith" className="pl-10 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-                                            <div className="space-y-1.5 sm:space-y-2">
-                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Consultation Fee (₹)</Label>
-                                                <div className="relative">
-                                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">payments</span>
-                                                    <Input type="number" required value={consultationFee} onChange={e => setConsultationFee(e.target.value)} placeholder="500.00" className="pl-10 h-10 sm:h-11 font-bold text-base sm:text-lg bg-slate-50 border-slate-200" />
-                                                </div>
-                                            </div>
 
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-1.5 sm:space-y-2">
-                                                    <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Discount (%)</Label>
+                                            <div className="space-y-1.5 sm:space-y-2">
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Clinical Team & Location</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="relative">
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            max="100"
-                                                            value={consultationDiscountPercent}
-                                                            onChange={e => setConsultationDiscountPercent(e.target.value)}
-                                                            placeholder="0"
-                                                            className="pr-6 h-10 sm:h-11 bg-slate-50 border-slate-200 text-sm"
-                                                        />
-                                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[14px] font-bold">%</span>
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] z-10">person_filled</span>
+                                                        <select 
+                                                            required 
+                                                            value={selectedDoctorId} 
+                                                            onChange={e => setSelectedDoctorId(e.target.value)}
+                                                            className="w-full flex h-10 sm:h-11 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent pl-10 appearance-none"
+                                                        >
+                                                            <option value="">{doctors.length > 0 ? 'Select Doctor*' : 'No doctors found'}</option>
+                                                            {doctors.map(d => (
+                                                                <option key={d.id} value={d.id}>{d.full_name}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
-                                                </div>
-                                                <div className="space-y-1.5 sm:space-y-2">
-                                                    <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Final Price (₹)</Label>
                                                     <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[14px] font-bold">₹</span>
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            value={consultationDiscountedFee}
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] z-10">domain</span>
+                                                        <select 
+                                                            required 
+                                                            value={selectedWardId} 
                                                             onChange={e => {
-                                                                setConsultationDiscountedFee(e.target.value);
-                                                                const originalAmount = parseFloat(consultationFee);
-                                                                const discounted = parseFloat(e.target.value);
-                                                                if (originalAmount > 0 && discounted >= 0 && discounted <= originalAmount) {
-                                                                    const pct = ((originalAmount - discounted) / originalAmount) * 100;
-                                                                    if (Math.abs(parseFloat(consultationDiscountPercent || '0') - pct) > 0.1) {
-                                                                        setConsultationDiscountPercent(pct.toFixed(2));
-                                                                    }
-                                                                }
+                                                                setSelectedWardId(e.target.value);
+                                                                setSelectedBedId(''); // Reset bed when ward changes
                                                             }}
-                                                            placeholder="0.00"
-                                                            disabled={!consultationFee}
-                                                            className="pl-8 h-10 sm:h-11 font-bold text-slate-700 bg-slate-50 border-slate-200 text-sm"
-                                                        />
+                                                            className="w-full h-10 sm:h-11 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent pl-10 appearance-none transition-all"
+                                                        >
+                                                            <option value="">{wards.length > 0 ? 'Select Ward*' : 'No wards found'}</option>
+                                                            {wards.map(w => (
+                                                                <option key={w.id} value={w.id}>{w.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="relative">
+                                                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] z-10">bed</span>
+                                                        {wards.length === 0 ? (
+                                                            <div className="flex h-10 sm:h-11 items-center justify-between w-full rounded-md border border-slate-200 bg-slate-50 px-3 pl-10 pr-2">
+                                                                <span className="text-[10px] sm:text-xs text-slate-500 font-bold truncate">Setup Wards First</span>
+                                                                <Button 
+                                                                    type="button" 
+                                                                    variant="ghost" 
+                                                                    size="sm" 
+                                                                    onClick={() => onNavigate?.('ipd')}
+                                                                    className="h-7 px-2 text-[10px] font-black text-indigo-600 hover:bg-indigo-50"
+                                                                >
+                                                                    Setup
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <select 
+                                                                required 
+                                                                disabled={!selectedWardId}
+                                                                value={selectedBedId} 
+                                                                onChange={e => setSelectedBedId(e.target.value)}
+                                                                className={`w-full h-10 sm:h-11 rounded-md border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-600 focus:border-transparent pl-10 appearance-none transition-all ${!selectedWardId ? 'bg-slate-100 cursor-not-allowed opacity-50' : 'bg-slate-50'}`}
+                                                            >
+                                                                <option value="">
+                                                                    {!selectedWardId ? 'Choose Ward First' : beds.filter(b => b.ward_id === selectedWardId).length > 0 ? 'Select Bed*' : 'No Available Beds'}
+                                                                </option>
+                                                                {beds.filter(b => b.ward_id === selectedWardId).map(b => (
+                                                                    <option key={b.id} value={b.id}>{b.bed_number}</option>
+                                                                ))}
+                                                            </select>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div className="space-y-1.5 sm:space-y-2">
-                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Payment Mode</Label>
-                                                <Select value={paymentMode} onValueChange={setPaymentMode}>
-                                                    <SelectTrigger className="h-10 sm:h-11 bg-slate-50 border-slate-200 font-medium text-sm"><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Cash">Cash Currency</SelectItem>
-                                                        <SelectItem value="UPI">UPI / QR Scan</SelectItem>
-                                                        <SelectItem value="Card">Credit / Debit Card</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                <Label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">Medical Context</Label>
+                                                <div className="relative">
+                                                    <span className="material-symbols-outlined absolute left-3 top-3 text-slate-400 text-[18px]">medical_information</span>
+                                                    <textarea 
+                                                        value={ipdReason} 
+                                                        onChange={e => setIpdReason(e.target.value)} 
+                                                        placeholder="Reason for Admission..." 
+                                                        className="w-full min-h-[80px] rounded-lg border border-slate-200 bg-slate-50 p-3 pl-10 text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all outline-none"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="pt-2 sm:pt-4 border-t border-slate-100">
-                                            <Button type="submit" disabled={isProcessing} className="w-full h-12 sm:h-14 text-sm sm:text-lg bg-blue-600 hover:bg-blue-700 shadow-md sm:shadow-xl shadow-blue-600/20 transition-all hover:-translate-y-0.5 rounded-xl font-bold">
-                                                {isProcessing ? <span className="material-symbols-outlined animate-spin mr-2">sync</span> : <span className="material-symbols-outlined mr-2">receipt_long</span>}
-                                                {isProcessing ? 'Processing Transaction...' : 'Process Payment & Print'}
-                                            </Button>
+
+                                        <div className="pt-2">
+                                            <div className="flex items-center justify-between mb-3 px-1">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Advance Deposit (Advance)</span>
+                                                <span className="text-sm font-bold text-indigo-600">₹{admissionAdvance || '0'}</span>
+                                            </div>
+                                            <div className="grid grid-cols-1">
+                                                <div className="relative">
+                                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-[16px]">payments</span>
+                                                     <Input type="number" value={admissionAdvance} onChange={e => setAdmissionAdvance(e.target.value)} placeholder="Amount to pay now (₹)" className="pl-9 h-10 bg-slate-50 border-slate-100 text-sm" />
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        <div className="flex flex-col gap-3 pt-2">
+                                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Payment Method for Advance</Label>
+                                            <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
+                                                {['Cash', 'UPI', 'Card'].map((m) => (
+                                                    <button key={m} type="button" onClick={() => setPaymentMode(m)} className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${paymentMode === m ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}>{m}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <Button type="submit" disabled={isProcessing} className="w-full h-11 sm:h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl sm:rounded-2xl font-bold text-base sm:text-lg shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2">
+                                            {isProcessing ? <Loader2 className="animate-spin" /> : <><span className="material-symbols-outlined">how_to_reg</span> Admit Patient & Finalize</>}
+                                        </Button>
                                     </form>
                                 </div>
                             </div>
@@ -596,6 +943,44 @@ export function POSDashboard() {
                             </div>
 
                             <div className="space-y-2 sm:space-y-3">
+                                <div className="space-y-1">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Link to Admission</Label>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px] z-10">hotel</span>
+                                        <select 
+                                            value={selectedAdmissionId || ''} 
+                                            onChange={e => {
+                                                const admId = e.target.value;
+                                                setSelectedAdmissionId(admId || null);
+                                                if (admId) {
+                                                    const adm = activeAdmissions.find(a => a.id === admId);
+                                                    if (adm) {
+                                                        setPatientName(adm.temp_patient_name || adm.patient?.full_name || '');
+                                                        setPatientPhone(adm.temp_patient_phone || adm.patient?.contact_number || '');
+                                                        setPatientAddress(adm.temp_patient_address || '');
+                                                        // Also try to find and set the doctor name
+                                                        const doc = doctors.find((d: any) => d.id === adm.admitting_doctor_id);
+                                                        if (doc) setDoctorName(doc.full_name);
+                                                        else if (adm.staff_details?.full_name) setDoctorName(adm.staff_details.full_name);
+                                                        setPaymentMode('IPD_BILL');
+                                                    }
+                                                } else {
+                                                    setPaymentMode('Cash');
+                                                }
+                                            }}
+                                            className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-6 py-1.5 focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                                        >
+                                            <option value="">Individual POS Sale</option>
+                                            {activeAdmissions.map(a => (
+                                                <option key={a.id} value={a.id}>
+                                                    {a.temp_patient_name || a.patient?.full_name} 
+                                                    {a.bed?.ward?.name ? ` (Ward: ${a.bed.ward.name})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                    </div>
+                                </div>
                                 <div className="grid grid-cols-1 gap-2">
                                     <div className="relative">
                                         <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">person</span>
@@ -605,6 +990,15 @@ export function POSDashboard() {
                                             required
                                             value={patientName}
                                             onChange={e => setPatientName(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="relative">
+                                        <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">call</span>
+                                        <input
+                                            className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium placeholder:font-normal"
+                                            placeholder="Patient Phone"
+                                            value={patientPhone}
+                                            onChange={e => setPatientPhone(e.target.value)}
                                         />
                                     </div>
                                     <div className="relative">
@@ -619,13 +1013,20 @@ export function POSDashboard() {
                                 </div>
                                 <div className="relative">
                                     <span className="material-symbols-outlined absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px]">stethoscope</span>
-                                    <input
-                                        className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium placeholder:font-normal"
-                                        placeholder="Prescribing Doctor*"
+                                    <select
+                                        className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium"
                                         required
                                         value={doctorName}
                                         onChange={e => setDoctorName(e.target.value)}
-                                    />
+                                    >
+                                        <option value="">Select Prescribing Doctor*</option>
+                                        {doctors.map((d: any) => (
+                                            <option key={d.id} value={d.full_name}>{d.full_name}</option>
+                                        ))}
+                                        {!doctors.some((d: any) => d.full_name === doctorName) && doctorName && (
+                                            <option value={doctorName}>{doctorName}</option>
+                                        )}
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -712,18 +1113,56 @@ export function POSDashboard() {
                             </div>
 
                             <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3 sm:mb-5">
-                                <button onClick={() => setPaymentMode('Cash')} className={`flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border-2 font-bold text-xs sm:text-sm transition-all ${paymentMode === 'Cash' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}>
+                                <button 
+                                    type="button"
+                                    onClick={() => setPaymentMode('Cash')} 
+                                    className={`flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border-2 font-bold text-xs sm:text-sm transition-all ${paymentMode === 'Cash' ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}
+                                >
                                     <span className="material-symbols-outlined text-[16px] sm:text-[18px]">payments</span> Cash
                                 </button>
-                                <button onClick={() => setPaymentMode('UPI')} className={`flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border-2 font-bold text-xs sm:text-sm transition-all ${paymentMode === 'UPI' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}>
+                                <button 
+                                    type="button"
+                                    onClick={() => setPaymentMode('UPI')} 
+                                    className={`flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border-2 font-bold text-xs sm:text-sm transition-all ${paymentMode === 'UPI' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}
+                                >
                                     <span className="material-symbols-outlined text-[16px] sm:text-[18px]">qr_code_scanner</span> UPI/Card
                                 </button>
+                                {selectedAdmissionId && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => setPaymentMode('IPD_BILL')} 
+                                        className={`col-span-2 flex items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border-2 font-bold text-xs sm:text-sm transition-all ${paymentMode === 'IPD_BILL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'}`}
+                                    >
+                                        <span className="material-symbols-outlined text-[16px] sm:text-[18px]">hotel</span> IPD Billing Mode
+                                    </button>
+                                )}
                             </div>
 
-                            <button onClick={handleProcessPharmacy} disabled={cart.length === 0 || isProcessing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 sm:py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md sm:shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 text-sm sm:text-base">
-                                {isProcessing ? <span className="material-symbols-outlined animate-spin text-[18px] sm:text-[20px]">sync</span> : <span className="material-symbols-outlined text-[18px] sm:text-[20px]">check_circle</span>}
-                                {isProcessing ? 'Processing Payment...' : 'Complete Payment'}
+                            <button 
+                                type="button"
+                                onClick={handleProcessPharmacy} 
+                                disabled={cart.length === 0 || isProcessing} 
+                                className={`w-full font-bold py-3 sm:py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md sm:shadow-lg disabled:opacity-50 disabled:shadow-none hover:-translate-y-0.5 active:translate-y-0 text-sm sm:text-base ${
+                                    paymentMode === 'IPD_BILL' 
+                                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20' 
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                                }`}
+                            >
+                                {isProcessing ? (
+                                    <span className="material-symbols-outlined animate-spin text-[18px] sm:text-[20px]">sync</span>
+                                ) : (
+                                    <span className="material-symbols-outlined text-[18px] sm:text-[20px]">
+                                        {paymentMode === 'IPD_BILL' ? 'assignment_add' : 'check_circle'}
+                                    </span>
+                                )}
+                                {isProcessing 
+                                    ? 'Processing...' 
+                                    : paymentMode === 'IPD_BILL' 
+                                        ? 'Add to IPD Bill' 
+                                        : 'Complete Payment'
+                                }
                             </button>
+
                         </div>
                     </aside>
                 )}

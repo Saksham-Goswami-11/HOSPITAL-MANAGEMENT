@@ -25,7 +25,7 @@ interface HospitalDashboardProps {
 
 export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
     const { toast } = useToast()
-    const { inventory, hospital, clinics, profile, billing, updateClinicProfile, revenueSummary, expiringItems, loading } = useHospital()
+    const { inventory, hospital, clinics, profile, billing, updateClinicProfile, revenueSummary, expiringItems, loading, activeIPDCount } = useHospital()
 
     // Derived state from context
     const aggregatedInventory = useMemo(() => {
@@ -316,7 +316,23 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
             </div>
 
             {/* STAT CARDS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {/* Active IPD Patients */}
+                <Card className="glass-card border-none overflow-hidden relative group cursor-pointer hover:ring-2 hover:ring-indigo-500/20 transition-all border-l-4 border-l-indigo-500">
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between pb-2">
+                            <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Active IPD Patients</h3>
+                            <UserPlus className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div className="text-4xl font-bold text-slate-900">
+                            {activeIPDCount}
+                        </div>
+                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-2">
+                            Currently Admitted
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Revenue Popup */}
                 <Dialog>
                     <DialogTrigger asChild>
@@ -341,19 +357,36 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                             <DialogTitle className="text-xl font-bold text-slate-900">Revenue Breakdown</DialogTitle>
                             <DialogDescription>Daily earnings across all connected clinics.</DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-3 py-4">
+                        <div className="space-y-4 py-4">
                             {revenueSummary.map(c => (
-                                <div key={c.clinic_id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-all group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                            <Building2 className="w-5 h-5" />
+                                <div key={c.clinic_id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-all group">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                                <Building2 className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-900">{c.clinic_name}</p>
+                                                <p className="text-xs text-slate-500">{c.transaction_count} Transactions Today</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-bold text-slate-900">{c.clinic_name}</p>
-                                            <p className="text-xs text-slate-500">{c.transaction_count} Transactions</p>
+                                        <p className="font-mono font-bold text-blue-600 text-lg">₹{c.total_revenue?.toLocaleString()}</p>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-200/60">
+                                        <div className="text-center">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">OPD</p>
+                                            <p className="text-xs font-bold text-slate-700">₹{(c.opd_revenue || 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-center border-x border-slate-200/60">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">IPD</p>
+                                            <p className="text-xs font-bold text-slate-700">₹{(c.ipd_revenue || 0).toLocaleString()}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Pharma</p>
+                                            <p className="text-xs font-bold text-slate-700">₹{(c.pharma_revenue || 0).toLocaleString()}</p>
                                         </div>
                                     </div>
-                                    <p className="font-mono font-bold text-blue-600 text-lg">₹{c.total_revenue?.toLocaleString()}</p>
                                 </div>
                             ))}
                             {revenueSummary.length === 0 && (
@@ -573,7 +606,11 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                                     <SelectContent className="bg-white">
                                         <SelectItem value="all">All Services</SelectItem>
                                         <SelectItem value="CONSULTATION">Consultation</SelectItem>
-                                        <SelectItem value="PHARMACY">Pharmacy</SelectItem>
+                                        <SelectItem value="PHARMACY">Pharmacy Sales</SelectItem>
+                                        <SelectItem value="IPD_ADMISSION_ADVANCE">IPD Advance</SelectItem>
+                                        <SelectItem value="IPD_SETTLEMENT">IPD Settlement (Ledger)</SelectItem>
+                                        <SelectItem value="IPD">IPD Final Settlement</SelectItem>
+                                        <SelectItem value="SERVICE">Gen. Services</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

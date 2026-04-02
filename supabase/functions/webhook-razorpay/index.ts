@@ -1,5 +1,5 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import "functions-js-types";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,7 +38,7 @@ async function verifySignature(body: string, signature: string, secret: string):
 }
 
 // Fire-and-forget email notification
-async function sendBillingEmail(supabaseUrl: string, emailType: string, data: Record<string, any>) {
+async function sendBillingEmail(supabaseUrl: string, emailType: string, data: Record<string, unknown>) {
   try {
     await fetch(`${supabaseUrl}/functions/v1/send-billing-email`, {
       method: 'POST',

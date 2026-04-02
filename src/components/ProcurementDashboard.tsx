@@ -67,6 +67,8 @@ export default function ProcurementDashboard() {
     const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [creditNotes, setCreditNotes] = useState<any[]>([]);
+    const [isEditingCreditLimit, setIsEditingCreditLimit] = useState(false);
+    const [editCreditLimitValue, setEditCreditLimitValue] = useState(0);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTab, setSelectedTab] = useState('orders');
@@ -335,17 +337,12 @@ export default function ProcurementDashboard() {
                 payment_date: new Date().toISOString()
             });
 
-            // Update supplier credit balance
-            const supplier = suppliers.find(s => s.id === newPayment.supplier_id);
-            if (supplier) {
-                await db.update('suppliers', supplier.id, {
-                    current_credit: (supplier.current_credit || 0) - newPayment.amount
-                });
-            }
+            // NOTE: DB trigger `handle_payment_financials` automatically updates suppliers.current_credit
 
             toast({ title: 'Payment Recorded', description: 'The payment has been successfully logged.' });
             setIsPaymentModalOpen(false);
             fetchData();
+            if (selectedSupplierId) fetchSupplierNotes(selectedSupplierId);
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         }
@@ -362,14 +359,7 @@ export default function ProcurementDashboard() {
                 supplier_id: selectedSupplierId
             });
 
-            // Update supplier credit balance
-            const supplier = suppliers.find(s => s.id === selectedSupplierId);
-            const currentCredit = (supplier?.current_credit || 0);
-            const adjustment = newNote.type === 'debit' ? newNote.amount : -newNote.amount;
-            
-            await db.update('suppliers', selectedSupplierId, {
-                current_credit: currentCredit + adjustment
-            });
+            // NOTE: DB trigger `update_supplier_credit` automatically updates suppliers.current_credit
 
             toast({ title: 'Note Recorded', description: `Successfully added ${newNote.type} note and updated credit balance.` });
             setIsNoteModalOpen(false);
@@ -382,6 +372,7 @@ export default function ProcurementDashboard() {
                 state_code: ''
             });
             fetchData();
+            if (selectedSupplierId) fetchSupplierNotes(selectedSupplierId);
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
         }
@@ -602,17 +593,30 @@ export default function ProcurementDashboard() {
 
             const currentTotal = totalBasic - totalDiscount + totalTax;
             
-            // Credit Limit Check
+            // Credit Limit Check — HARD BLOCK
             const selectedSupplier = suppliers.find(s => s.id === newPO.supplier_id);
             if (newPO.payment_mode === 'credit' && selectedSupplier) {
+                const creditLimit = selectedSupplier.credit_limit || 0;
                 const netCreditImpact = currentTotal - (newPO.advance_paid || 0);
-                const remainingCredit = (selectedSupplier.credit_limit || 0) - (selectedSupplier.current_credit || 0);
+                const projectedCredit = (selectedSupplier.current_credit || 0) + netCreditImpact;
                 
-                if (netCreditImpact > remainingCredit) {
-                    const proceed = window.confirm(
-                        `CRITIAL: This order (₹${netCreditImpact.toLocaleString()}) exceeds the remaining credit limit for ${selectedSupplier.name} (₹${remainingCredit.toLocaleString()}).\n\nDo you want to override and proceed?`
-                    );
-                    if (!proceed) return;
+                if (creditLimit > 0 && projectedCredit > creditLimit) {
+                    const remainingCredit = Math.max(0, creditLimit - (selectedSupplier.current_credit || 0));
+                    const isAdmin = profile?.role === 'HOSPITAL_ADMIN' || profile?.role === 'SUPER_ADMIN' || profile?.role === 'OWNER';
+                    
+                    if (isAdmin) {
+                        const proceed = window.confirm(
+                            `⚠️ CREDIT LIMIT EXCEEDED\n\nThis order needs ₹${netCreditImpact.toLocaleString()} in credit but only ₹${remainingCredit.toLocaleString()} remains for ${selectedSupplier.name}.\n\nAs an admin, you can override this. Proceed?`
+                        );
+                        if (!proceed) return;
+                    } else {
+                        toast({ 
+                            title: 'Credit Limit Exceeded', 
+                            description: `Cannot create this order. It needs ₹${netCreditImpact.toLocaleString()} in credit but only ₹${remainingCredit.toLocaleString()} remains for ${selectedSupplier.name}. Contact an admin to increase the credit limit.`, 
+                            variant: 'destructive' 
+                        });
+                        return;
+                    }
                 }
             }
 
@@ -681,20 +685,13 @@ export default function ProcurementDashboard() {
             setIsPOModalOpen(false);
             setPoItems([]);
             
-            // 9. Sync supplier master data and update credit
+            // 9. Sync supplier master data (address/state only)
+            // NOTE: DB trigger `handle_po_financials` handles credit updates when PO is received
             try {
-                const supplierUpdates: any = {
+                await db.update('suppliers', newPO.supplier_id, {
                     billing_address: newPO.place_of_supply,
                     state_code: newPO.state_code,
-                };
-
-                const selectedSupplier = suppliers.find(s => s.id === newPO.supplier_id);
-                if (newPO.payment_mode === 'credit' && selectedSupplier) {
-                    const netCreditImpact = currentTotal - (newPO.advance_paid || 0);
-                    supplierUpdates.current_credit = (selectedSupplier.current_credit || 0) + netCreditImpact;
-                }
-
-                await db.update('suppliers', newPO.supplier_id, supplierUpdates);
+                });
             } catch (err) {
                 console.error('Failed to sync supplier master record:', err);
             }
@@ -729,21 +726,64 @@ export default function ProcurementDashboard() {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Current Credit Usage</p>
                                 <div className="flex justify-between items-end mb-2">
                                     <span className="text-2xl font-bold text-slate-800">₹{supplier?.current_credit?.toLocaleString() || 0}</span>
-                                    <span className="text-xs text-slate-500 font-medium pb-1">Limit: ₹{supplier?.credit_limit?.toLocaleString() || 0}</span>
+                                    {isEditingCreditLimit ? (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-xs text-slate-500">₹</span>
+                                            <Input 
+                                                type="number" 
+                                                value={editCreditLimitValue} 
+                                                onChange={e => setEditCreditLimitValue(Number(e.target.value))} 
+                                                className="w-24 h-7 text-xs text-right p-1 border-blue-300"
+                                                autoFocus
+                                                onKeyDown={async (e) => {
+                                                    if (e.key === 'Enter') {
+                                                        await db.update('suppliers', supplier.id, { credit_limit: editCreditLimitValue });
+                                                        toast({ title: 'Updated', description: `Credit limit set to ₹${editCreditLimitValue.toLocaleString()}` });
+                                                        setIsEditingCreditLimit(false);
+                                                        fetchData();
+                                                    } else if (e.key === 'Escape') {
+                                                        setIsEditingCreditLimit(false);
+                                                    }
+                                                }}
+                                            />
+                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-emerald-600" onClick={async () => {
+                                                await db.update('suppliers', supplier.id, { credit_limit: editCreditLimitValue });
+                                                toast({ title: 'Updated', description: `Credit limit set to ₹${editCreditLimitValue.toLocaleString()}` });
+                                                setIsEditingCreditLimit(false);
+                                                fetchData();
+                                            }}>
+                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <button 
+                                            className="text-xs text-slate-500 font-medium pb-1 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1"
+                                            onClick={() => {
+                                                setEditCreditLimitValue(supplier?.credit_limit || 0);
+                                                setIsEditingCreditLimit(true);
+                                            }}
+                                        >
+                                            Limit: ₹{supplier?.credit_limit?.toLocaleString() || 0}
+                                            <Edit3 className="w-3 h-3" />
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                                     <div 
                                         className={`h-full rounded-full transition-all duration-500 ${
-                                            (supplier?.current_credit / supplier?.credit_limit) > 0.9 ? 'bg-red-500' : 
-                                            (supplier?.current_credit / supplier?.credit_limit) > 0.7 ? 'bg-orange-500' : 'bg-blue-500'
+                                            supplier?.credit_limit > 0 && (supplier?.current_credit / supplier?.credit_limit) > 0.9 ? 'bg-red-500' : 
+                                            supplier?.credit_limit > 0 && (supplier?.current_credit / supplier?.credit_limit) > 0.7 ? 'bg-orange-500' : 'bg-blue-500'
                                         }`}
-                                        style={{ width: `${Math.min(100, (supplier?.current_credit / supplier?.credit_limit) * 100 || 0)}%` }}
+                                        style={{ width: `${supplier?.credit_limit > 0 ? Math.min(100, (supplier?.current_credit / supplier?.credit_limit) * 100) : 0}%` }}
                                     />
                                 </div>
-                                {(supplier?.current_credit > supplier?.credit_limit) && (
+                                {(supplier?.credit_limit > 0 && supplier?.current_credit > supplier?.credit_limit) && (
                                     <p className="text-[10px] text-red-600 font-bold mt-2 flex items-center gap-1">
-                                        <AlertCircle className="w-3 h-3" /> Credit limit exceeded!
+                                        <AlertCircle className="w-3 h-3" /> Credit limit exceeded by ₹{(supplier.current_credit - supplier.credit_limit).toLocaleString()}!
                                     </p>
+                                )}
+                                {supplier?.credit_limit === 0 && (
+                                    <p className="text-[10px] text-slate-400 mt-2">No credit limit set. Click limit to set one.</p>
                                 )}
                             </div>
                             

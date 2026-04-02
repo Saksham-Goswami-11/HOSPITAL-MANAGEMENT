@@ -25,6 +25,7 @@ import { HospitalShiftManagement } from '@/components/HospitalShiftManagement';
 import { EarningsDashboard } from '@/components/EarningsDashboard';
 import { SettingsDashboard } from '@/components/SettingsDashboard';
 import { CAFinancialSuite } from '@/components/CAFinancialSuite';
+import { IPDDashboard } from '@/components/IPDDashboard';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '@/pages/LandingPage';
 import { RegisterPage } from '@/components/RegisterPage';
@@ -49,7 +50,7 @@ import { authService } from '@/lib/authService'
 import { dataService } from '@/lib/dataService'
 
 // View types
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration' | 'expenses' | 'equipments' | 'ca-suite'
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration' | 'expenses' | 'equipments' | 'ca-suite' | 'ipd'
 
 const PageWrapper = ({ children }: { children: React.ReactNode }) => (
     <motion.div
@@ -83,22 +84,35 @@ function AppContent() {
     useEffect(() => {
         if (!loading && profile) {
             // Router logic processing
+            // Each role has a set of valid views (matching their sidebar menu).
+            // Only redirect to the default if the current view is NOT in their allowed set.
+            // This prevents losing the user's position when the component remounts
+            // (e.g. tab switch, minimize, auth state re-trigger).
 
             // 1. CRITICAL: Clinic Admin Bypass (Gatekeeper Fix)
             // Allow entry even if clinic_id is null (The Dashboard will handle the "No Clinic" state)
             if (profile.role === 'CLINIC_ADMIN') {
-                if (view !== 'admin') {
-                    // Redirecting Clinic Admin to Dashboard
+                const clinicAdminViews: View[] = ['admin', 'pos', 'staff', 'attendance', 'shift-management', 'inventory-dashboard', 'ipd', 'settings'];
+                if (!clinicAdminViews.includes(view)) {
                     setView('admin');
                 }
                 return;
             }
 
-            // 1b. CRITICAL: Clinic Staff Bypass
-            if (profile.role === 'CLINIC_STAFF' && profile.clinic_id) {
-                if (view !== 'pos' && view !== 'staff' && view !== 'inventory-dashboard') {
-                    // Redirecting Clinic Staff to POS
+            // 1b. CRITICAL: Clinic Staff & Clinic-Linked Doctors Bypass
+            if ((profile.role === 'CLINIC_STAFF' || profile.role === 'DOCTOR') && profile.clinic_id && !profile.hospital_id) {
+                const clinicStaffViews: View[] = ['pos', 'staff', 'inventory-dashboard', 'ipd'];
+                if (!clinicStaffViews.includes(view)) {
                     setView('pos');
+                }
+                return;
+            }
+
+            // 1c. Hospital-Linked Doctors
+            if (profile.role === 'DOCTOR' && profile.hospital_id) {
+                const doctorViews: View[] = ['admin', 'ipd', 'pos', 'inventory-dashboard'];
+                if (!doctorViews.includes(view)) {
+                    setView('admin');
                 }
                 return;
             }
@@ -108,18 +122,36 @@ function AppContent() {
                 if (view !== 'setup') setView('setup');
             }
 
+            // 2b. Hospital Admin — allow all their sidebar views
+            else if (['ADMIN', 'HOSPITAL_ADMIN'].includes(profile.role)) {
+                const hospitalAdminViews: View[] = ['admin', 'inventory-dashboard', 'staff', 'shift-management', 'earnings', 'billing', 'procurement', 'expenses', 'equipments', 'ipd', 'ca-suite', 'settings', 'setup', 'pos', 'attendance', 'medicine-migration'];
+                if (!hospitalAdminViews.includes(view)) {
+                    setView('admin');
+                }
+            }
+
+            // 2c. Super Admin — allow all their sidebar views
+            else if (['SUPER_ADMIN', 'OWNER'].includes(profile.role)) {
+                const superAdminViews: View[] = ['admin', 'hospitals', 'audit_logs', 'billing', 'settings'];
+                if (!superAdminViews.includes(view)) {
+                    setView('admin');
+                }
+            }
+
             // 3. Default Routing (Only if view is generic 'selection' or 'setup' but shouldn't be)
             else if (view === 'selection' || (view === 'setup' && profile.hospital_id)) {
                 if (['ADMIN', 'SUPER_ADMIN', 'HOSPITAL_ADMIN', 'CLINIC_ADMIN'].includes(profile.role)) {
                     setView('admin');
-                } else if (profile.role === 'CLINIC_STAFF') {
+                } else if (profile.role === 'CLINIC_STAFF' || (profile.role === 'DOCTOR' && profile.clinic_id)) {
                     setView('pos');
+                } else if (profile.role === 'DOCTOR' && profile.hospital_id) {
+                    setView('admin');
                 }
             }
         } else if (!loading && !session) {
             setView('selection');
         }
-    }, [loading, profile, session]); // Check: Removed 'view' dependency to prevent loops, checking logic.
+    }, [loading, profile, session]); // Removed 'view' dependency to prevent redirect loops.
 
     // Used for Super Admin "Hospital X-Ray"
     const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
@@ -163,7 +195,7 @@ function AppContent() {
             <AnimatePresence mode="wait">
                 <PageWrapper key={view}>
                     {/* ERROR STATE: Locked out if no Role */}
-                    {view === 'selection' && !loading && profile && !['ADMIN', 'CLINIC_STAFF', 'SUPER_ADMIN', 'HOSPITAL_ADMIN', 'CLINIC_ADMIN'].includes(profile?.role || '') && (
+                    {view === 'selection' && !loading && profile && !['ADMIN', 'CLINIC_STAFF', 'SUPER_ADMIN', 'HOSPITAL_ADMIN', 'CLINIC_ADMIN', 'DOCTOR'].includes(profile?.role || '') && (
                         <div className="flex flex-col items-center justify-center p-12 text-center h-full">
                             <Shield className="w-20 h-20 text-slate-200 mb-6" />
                             <h1 className="text-3xl font-bold text-slate-900">Access Restricted</h1>
@@ -186,7 +218,7 @@ function AppContent() {
 
                     {/* POS/BILLING DASHBOARD */}
                     {view === 'pos' && (
-                        <POSDashboard />
+                        <POSDashboard onNavigate={setView} />
                     )}
 
                     {/* PROCUREMENT DASHBOARD */}
@@ -266,6 +298,10 @@ function AppContent() {
                                     </div>
                                 )
                             )}
+                            {/* TIER 4: DOCTOR (Hospital Context) */}
+                            {(profile?.role === 'DOCTOR') && profile.hospital_id && (
+                                <HospitalDashboard onSelectClinic={setSelectedClinicId} />
+                            )}
                         </>
                     )}
 
@@ -321,6 +357,10 @@ function AppContent() {
 
                     {view === 'ca-suite' && (
                         <CAFinancialSuite />
+                    )}
+
+                    {view === 'ipd' && (
+                        <IPDDashboard />
                     )}
 
                     {view === 'settings' && (

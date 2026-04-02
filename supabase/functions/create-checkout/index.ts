@@ -1,5 +1,4 @@
-/// <reference path="../_types.d.ts" />
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "functions-js-types";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -22,6 +21,8 @@ Deno.serve(async (req: Request) => {
         const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
         const authHeader = req.headers.get('Authorization');
 
+        console.log(`Auth Header detected: ${!!authHeader}, Length: ${authHeader?.length}`);
+
         if (!authHeader) {
             console.error('Missing authorization header');
             return new Response(
@@ -40,7 +41,7 @@ Deno.serve(async (req: Request) => {
         if (authError || !user) {
             console.error('Auth User Error:', authError?.message || 'No user found');
             return new Response(
-                JSON.stringify({ error: 'Unauthorized' }),
+                JSON.stringify({ error: 'Unauthorized', details: authError?.message }),
                 { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
@@ -154,10 +155,11 @@ Deno.serve(async (req: Request) => {
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Checkout error:', error);
+        const message = error instanceof Error ? error.message : 'Internal server error';
         return new Response(
-            JSON.stringify({ error: error.message || 'Internal server error' }),
+            JSON.stringify({ error: message }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }

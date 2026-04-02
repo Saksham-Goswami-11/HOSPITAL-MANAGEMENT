@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
 
-type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'shift-management';
+type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'shift-management' | 'ipd';
 
 interface ClinicAdminDashboardProps {
     clinicId: string;
@@ -111,34 +111,34 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                 const todaySales = allSales.filter((s: any) => new Date(s.timestamp) >= new Date(startOfDay)).reverse()
                 setDailySales(todaySales)
 
-                const revenue = todaySales.reduce((sum: number, s: any) => sum + (s.amount || 0), 0)
+                const revenue = todaySales.filter((s: any) => s.payment_mode !== 'IPD_BILL').reduce((sum: number, s: any) => sum + (s.amount || 0), 0)
                 const transactions = todaySales.length
 
                 // Aggregate binary weekly data
-                const chartMap = new Map()
+                const chartMap: any = {}
 
                 // Initialize range days
                 for (let i = rangeDays - 1; i >= 0; i--) {
                     const d = new Date()
                     d.setDate(d.getDate() - i)
                     const dateKey = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                    chartMap.set(dateKey, { name: dateKey, visits: 0, revenue: 0 })
+                    chartMap[dateKey] = { name: dateKey, visits: 0, revenue: 0 }
                 }
 
                 allSales.forEach((sale: any) => {
                     const d = new Date(sale.timestamp)
-                    const dateKey = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                    if (chartMap.has(dateKey)) {
-                        const current = chartMap.get(dateKey)
-                        chartMap.set(dateKey, {
+                    const dayName = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                    if (chartMap[dayName]) {
+                        const current = chartMap[dayName]
+                        chartMap[dayName] = {
                             ...current,
                             visits: current.visits + 1,
-                            revenue: current.revenue + (sale.amount || 0)
-                        })
+                            revenue: current.revenue + (sale.payment_mode !== 'IPD_BILL' ? (sale.amount || 0) : 0)
+                        }
                     }
                 })
 
-                setWeeklyData(Array.from(chartMap.values()))
+                setWeeklyData(Object.values(chartMap))
 
                 // 3. Update Stats
                 const staffCount = await db.count('staff_details', {
@@ -183,16 +183,12 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
             });
 
             if (itemsData) {
-                // Note: In Firestore, we don't have automagic joins.
-                // We either need to denormalize item_name into sale_items
-                // or fetch each inventory item. For now, we'll try to fetch names if needed.
                 const formattedItems = await Promise.all(itemsData.map(async (item: any) => {
                     let itemName = 'Unknown Item';
                     if (item.inventory_id) {
                         const invDoc = await db.get('inventory', item.inventory_id);
                         itemName = invDoc?.item_name || 'Deleted Item';
                     }
-                    // We use item.price OR item.unit_price to be safe across different schema versions
                     const priceValue = item.price !== undefined ? item.price : item.unit_price;
                     return {
                         item_name: itemName,
@@ -219,7 +215,6 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 max-w-[1600px] mx-auto">
-            {/* ... (Rest of component remains same as visual logic is unchanged) ... */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200/60 pb-8">
                 <div>
                     <div className="flex items-center gap-3">
@@ -318,30 +313,45 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-slate-50 sticky top-0 border-b border-slate-200">
                                             <tr>
-                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Time</th>
-                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Patient</th>
-                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Doctor</th>
-                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Type</th>
+                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Patient Details</th>
+                                                <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs">Type & Mode</th>
                                                 <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs text-right">Amount</th>
                                                 <th className="px-5 py-3 font-bold text-slate-500 uppercase tracking-wider text-xs text-center w-16">Receipt</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {filteredTransactions.map((sale: any) => (
-                                                <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-5 py-4 text-slate-500 font-mono text-xs">
-                                                        {new Date(sale.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </td>
-                                                    <td className="px-5 py-4 font-bold text-slate-800">{sale.patient_name}</td>
-                                                    <td className="px-5 py-4 text-slate-600 font-medium">{sale.doctor_name}</td>
+                                                <tr key={sale.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 group">
                                                     <td className="px-5 py-4">
-                                                        <span className={`inline-flex px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${sale.sale_type === 'CONSULTATION' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                                                            }`}>
-                                                            {sale.sale_type.replace('_', ' ')}
-                                                        </span>
+                                                        <p className="font-bold text-slate-900">{sale.patient_name || 'Walking Patient'}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <p className="text-xs text-slate-500 font-medium">Dr. {sale.doctor_name || 'Staff'}</p>
+                                                            <span className="text-[10px] text-slate-300">•</span>
+                                                            <p className="text-[10px] text-slate-400 font-mono uppercase">{sale.id?.split('-')[0]}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-5 py-4">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold w-fit ${sale.sale_type === 'PHARMACY'
+                                                                    ? 'bg-purple-100 text-purple-700'
+                                                                    : sale.sale_type === 'CONSULTATION'
+                                                                        ? 'bg-blue-100 text-blue-700'
+                                                                        : 'bg-emerald-100 text-emerald-700'
+                                                                }`}>
+                                                                {sale.sale_type}
+                                                            </span>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium w-fit border ${sale.payment_mode === 'IPD_BILL'
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                                                                }`}>
+                                                                {sale.payment_mode === 'IPD_BILL' ? 'ADDED TO BILL (CREDIT)' : sale.payment_mode}
+                                                            </span>
+                                                        </div>
                                                     </td>
                                                     <td className="px-5 py-4 font-bold text-slate-900 text-right text-lg">
-                                                        ₹{sale.amount?.toLocaleString()}
+                                                        <span className={sale.payment_mode === 'IPD_BILL' ? 'text-slate-400 font-normal italic' : ''}>
+                                                            ₹{sale.amount?.toLocaleString()}
+                                                        </span>
                                                     </td>
                                                     <td className="px-5 py-4 text-center">
                                                         <button
@@ -503,6 +513,10 @@ export function ClinicAdminDashboard({ clinicId, onBack, onNavigate }: ClinicAdm
                         <button onClick={() => onNavigate?.('shift-management')} className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3 p-4 bg-slate-50 text-slate-700 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-200/50 group">
                             <span className="material-symbols-outlined text-slate-500 text-2xl group-hover:text-blue-600 transition-colors">schedule</span>
                             <span className="text-sm font-semibold">Shift Roster</span>
+                        </button>
+                        <button onClick={() => onNavigate?.('ipd')} className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3 p-4 bg-slate-100 text-slate-700 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-200 group">
+                            <span className="material-symbols-outlined text-slate-500 text-2xl group-hover:text-blue-600 transition-colors">hotel</span>
+                            <span className="text-sm font-semibold">IPD Management</span>
                         </button>
                     </div>
                 </div>

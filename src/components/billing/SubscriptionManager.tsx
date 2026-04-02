@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { dataService as db } from '@/lib/dataService';
 import { Card, CardContent } from '@/components/ui/basic';
 import { Button, Input } from '@/components/ui/basic';
-import {
-    CheckCircle2, XCircle, Clock, Star, Video, ExternalLink,
+import { CheckCircle2, XCircle, Clock, Star, Video, ExternalLink,
     Pause, Play, Trash2, Calendar, Loader2, Search
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { authService as auth } from '@/lib/authService';
 
 export function SubscriptionManager() {
     const { toast } = useToast();
@@ -54,13 +54,17 @@ export function SubscriptionManager() {
     const handleExtensionAction = async (requestId: string, hospitalId: string, approve: boolean) => {
         setProcessingId(requestId);
         try {
+            const session = await auth.getSession();
             const { data, error } = await db.invokeFunction('manage-subscription', {
                 body: {
                     action: 'approve_trial_extension',
                     hospitalId,
                     requestId,
                     approve
-                }
+                },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                },
             });
 
             if (error) throw error;
@@ -95,13 +99,17 @@ export function SubscriptionManager() {
 
         setProcessingId(hospitalId);
         try {
+            const session = await auth.getSession();
             const { data, error } = await db.invokeFunction('manage-subscription', {
                 body: {
                     action: isDelete ? 'delete_hospital' : (action === 'extend_trial' ? 'approve_trial_extension' : action),
                     hospitalId,
                     approve: action === 'extend_trial' ? true : undefined,
                     requestId: action === 'extend_trial' ? 'manual_admin_override' : undefined
-                }
+                },
+                headers: {
+                    Authorization: `Bearer ${session?.access_token}`,
+                },
             });
 
             if (error) throw error;
@@ -242,12 +250,16 @@ export function SubscriptionManager() {
                                         onClick={async () => {
                                             setProcessingId(del.id);
                                             try {
+                                                const session = await auth.getSession();
                                                 const { data, error } = await db.invokeFunction('manage-subscription', {
                                                     body: {
                                                         action: 'approve_data_deletion',
                                                         hospitalId: del.hospital_id,
                                                         requestId: del.id
-                                                    }
+                                                    },
+                                                    headers: {
+                                                        Authorization: `Bearer ${session?.access_token}`,
+                                                    },
                                                 });
                                                 if (error) throw error;
                                                 toast({ title: 'Deletion Approved', description: data?.message || 'Hospital data permanently deleted.', className: 'bg-red-50 text-red-900 border-red-200' });
@@ -268,12 +280,16 @@ export function SubscriptionManager() {
                                         onClick={async () => {
                                             setProcessingId(del.id);
                                             try {
+                                                const session = await auth.getSession();
                                                 const { error } = await db.invokeFunction('manage-subscription', {
                                                     body: {
                                                         action: 'reject_data_deletion',
                                                         hospitalId: del.hospital_id,
                                                         requestId: del.id
-                                                    }
+                                                    },
+                                                    headers: {
+                                                        Authorization: `Bearer ${session?.access_token}`,
+                                                    },
                                                 });
                                                 if (error) throw error;
                                                 toast({ title: 'Deletion Rejected', description: 'Data preservation extended.', className: 'bg-green-50 text-green-900 border-green-200' });

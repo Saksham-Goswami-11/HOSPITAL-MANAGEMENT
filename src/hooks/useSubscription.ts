@@ -236,6 +236,40 @@ export function useSubscription(hospitalId: string | null | undefined): Subscrip
                         (usageMap as any)[metric.metric_key] = metric.current_value;
                     }
                 }
+                
+                // Persistent metrics that should NEVER be 0 if actual data exists
+                // If these are missing for the current period, trigger a recount
+                const persistentMetrics = ['staff_count', 'clinics_count', 'inventory_items'] as const;
+                const existingKeys = (usageData as UsageMetric[]).map(m => m.metric_key);
+                const missingPersistent = persistentMetrics.filter(k => !existingKeys.includes(k));
+                
+                if (missingPersistent.length > 0) {
+                    // Self-heal: recount missing persistent metrics in background
+                    Promise.all(
+                        missingPersistent.map(metricKey =>
+                            db.callRpc('recount_usage_metric', { p_hospital_id: hospitalId, p_metric_key: metricKey })
+                                .catch((e: any) => console.warn(`Failed to recount ${metricKey}:`, e))
+                        )
+                    ).then(async () => {
+                        // Re-fetch after recount
+                        const refreshedUsage = await db.list('usage_metrics', {
+                            filters: [
+                                { column: 'hospital_id', operator: 'eq', value: hospitalId },
+                                { column: 'period', operator: 'eq', value: currentPeriod }
+                            ]
+                        });
+                        if (refreshedUsage) {
+                            const refreshedMap = { ...DEFAULT_USAGE };
+                            for (const metric of refreshedUsage as UsageMetric[]) {
+                                if (metric.metric_key in refreshedMap) {
+                                    (refreshedMap as any)[metric.metric_key] = metric.current_value;
+                                }
+                            }
+                            setUsage(refreshedMap);
+                        }
+                    });
+                }
+                
                 setUsage(usageMap);
             }
         } catch (err) {
