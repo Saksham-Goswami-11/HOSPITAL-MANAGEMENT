@@ -52,6 +52,85 @@ import { dataService } from '@/lib/dataService'
 // View types
 type View = 'selection' | 'staff' | 'admin' | 'inventory-dashboard' | 'setup' | 'hospitals' | 'audit_logs' | 'pos' | 'attendance' | 'earnings' | 'settings' | 'billing' | 'shift-management' | 'procurement' | 'medicine-migration' | 'expenses' | 'equipments' | 'ca-suite' | 'ipd'
 
+type SeoConfig = {
+    title: string
+    description: string
+    path: string
+    robots: 'index, follow' | 'noindex, nofollow'
+}
+
+const SEO_BASE_URL = 'https://www.aarogyanidhi.in'
+const DEFAULT_SEO: SeoConfig = {
+    title: 'Aarogyanidhi | Hospital Business Operations & Inventory',
+    description: 'A complete hospital management system focused on core business operations. Seamlessly manage clinic inventory, OPD billing, consultation fees, staff, and CA balance sheets.',
+    path: '/',
+    robots: 'index, follow'
+}
+
+const SEO_ROUTES: Record<string, SeoConfig> = {
+    '/': DEFAULT_SEO,
+    '/about': {
+        title: 'About Aarogyanidhi | Hospital Operations Platform',
+        description: 'Learn how Aarogyanidhi helps hospitals and clinics run smoother operations across billing, inventory, staff workflows, and financial oversight.',
+        path: '/about',
+        robots: 'index, follow'
+    },
+    '/news': {
+        title: 'Aarogyanidhi News | Hospital Business Insights',
+        description: 'Explore updates, announcements, and practical insights on hospital business operations, inventory control, and clinic financial workflows.',
+        path: '/news',
+        robots: 'index, follow'
+    },
+    '/contact': {
+        title: 'Contact Aarogyanidhi | Hospital Management Support',
+        description: 'Connect with Aarogyanidhi to discuss hospital operations, clinic inventory, OPD billing, staff workflows, and CA-ready reporting needs.',
+        path: '/contact',
+        robots: 'index, follow'
+    },
+    '/clinic-operations': {
+        title: 'Clinic Operations Management | Aarogyanidhi',
+        description: 'Streamline day-to-day clinic operations with centralized workflows for OPD billing, inventory, consultation fees, and staff coordination.',
+        path: '/clinic-operations',
+        robots: 'index, follow'
+    },
+    '/hospital-command-center': {
+        title: 'Hospital Command Center | Aarogyanidhi',
+        description: 'Get a unified command center for hospital business performance, from operations tracking and billing to inventory and staff management.',
+        path: '/hospital-command-center',
+        robots: 'index, follow'
+    },
+    '/privacy': {
+        title: 'Privacy Policy | Aarogyanidhi',
+        description: 'Read Aarogyanidhi privacy practices for handling data across hospital and clinic operations, billing, and business management workflows.',
+        path: '/privacy',
+        robots: 'index, follow'
+    },
+    '/careers': {
+        title: 'Careers at Aarogyanidhi | Build Healthcare Ops Tech',
+        description: 'Join Aarogyanidhi and help build technology that improves hospital business operations, inventory systems, billing, and financial reporting.',
+        path: '/careers',
+        robots: 'index, follow'
+    },
+    '/support': {
+        title: 'Support | Aarogyanidhi Hospital Management System',
+        description: 'Access support for Aarogyanidhi features spanning inventory, OPD billing, consultation fees, staff workflows, and CA balance-sheet readiness.',
+        path: '/support',
+        robots: 'index, follow'
+    },
+    '/login': {
+        title: 'Login | Aarogyanidhi',
+        description: DEFAULT_SEO.description,
+        path: '/login',
+        robots: 'noindex, nofollow'
+    },
+    '/register': {
+        title: 'Register | Aarogyanidhi',
+        description: DEFAULT_SEO.description,
+        path: '/register',
+        robots: 'noindex, nofollow'
+    }
+}
+
 const PageWrapper = ({ children }: { children: React.ReactNode }) => (
     <motion.div
         variants={pageVariants}
@@ -388,6 +467,86 @@ function AnalyticsTracker() {
     return null;
 }
 
+function SeoManager() {
+    const location = useLocation();
+
+    useEffect(() => {
+        const currentPath = location.pathname.startsWith('/app') ? '/app/*' : location.pathname;
+        const seoConfig = currentPath === '/app/*'
+            ? {
+                ...DEFAULT_SEO,
+                title: 'Aarogyanidhi App',
+                path: '/app',
+                robots: 'noindex, nofollow' as const
+            }
+            : (SEO_ROUTES[currentPath] || DEFAULT_SEO);
+
+        const canonicalUrl = `${SEO_BASE_URL}${seoConfig.path === '/' ? '' : seoConfig.path}`;
+        document.title = seoConfig.title;
+
+        const updateMeta = (selector: string, attr: 'name' | 'property', value: string, content: string) => {
+            const existing = document.head.querySelector<HTMLMetaElement>(selector);
+            if (existing) {
+                existing.setAttribute('content', content);
+                return;
+            }
+            const meta = document.createElement('meta');
+            meta.setAttribute(attr, value);
+            meta.setAttribute('content', content);
+            document.head.appendChild(meta);
+        };
+
+        const updateLink = (selector: string, rel: string, href: string) => {
+            const existing = document.head.querySelector<HTMLLinkElement>(selector);
+            if (existing) {
+                existing.setAttribute('href', href);
+                return;
+            }
+            const link = document.createElement('link');
+            link.setAttribute('rel', rel);
+            link.setAttribute('href', href);
+            document.head.appendChild(link);
+        };
+
+        updateMeta('meta[name="description"]', 'name', 'description', seoConfig.description);
+        updateMeta('meta[name="robots"]', 'name', 'robots', seoConfig.robots);
+        updateMeta('meta[property="og:title"]', 'property', 'og:title', seoConfig.title);
+        updateMeta('meta[property="og:description"]', 'property', 'og:description', seoConfig.description);
+        updateMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
+        updateMeta('meta[name="twitter:title"]', 'name', 'twitter:title', seoConfig.title);
+        updateMeta('meta[name="twitter:description"]', 'name', 'twitter:description', seoConfig.description);
+        updateLink('link[rel="canonical"]', 'canonical', canonicalUrl);
+
+        const jsonLdId = 'route-seo-jsonld';
+        const existingScript = document.getElementById(jsonLdId);
+        const jsonLdPayload = {
+            '@context': 'https://schema.org',
+            '@type': 'WebPage',
+            name: seoConfig.title,
+            description: seoConfig.description,
+            url: canonicalUrl,
+            isPartOf: {
+                '@type': 'WebSite',
+                name: 'Aarogyanidhi',
+                url: SEO_BASE_URL
+            }
+        };
+
+        if (existingScript) {
+            existingScript.textContent = JSON.stringify(jsonLdPayload);
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.id = jsonLdId;
+        script.textContent = JSON.stringify(jsonLdPayload);
+        document.head.appendChild(script);
+    }, [location.pathname]);
+
+    return null;
+}
+
 function AppRouter() {
     const { session, loading, isPasswordRecovery } = useHospital();
     const location = useLocation();
@@ -413,6 +572,7 @@ function AppRouter() {
 
     return (
         <>
+            <SeoManager />
             <AnalyticsTracker />
             <AnimatePresence mode="wait">
                 <Routes location={location} key={location.pathname}>
