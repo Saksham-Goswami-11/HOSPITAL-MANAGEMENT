@@ -3,20 +3,20 @@ import { CardDescription } from '@/components/ui/basic'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Loader2 } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { dataService as db } from '@/lib/dataService'
 import { useHospital } from '@/context/HospitalContext'
 import { ReceiptModal } from '@/components/ui/ReceiptModal'
 
 type POSView = 'pharmacy' | 'consultation' | 'ipd';
 
-export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void }) {
+export function POSDashboard({ onNavigate, currentClinicId }: { onNavigate?: (view: any) => void, currentClinicId?: string }) {
     const { profile, clinics, inventory, billing } = useHospital();
     const { toast } = useToast();
 
     // Context & Routing
     const [view, setView] = useState<POSView>('pharmacy');
-    const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
+    const [selectedClinicId, setSelectedClinicId] = useState<string | null>(currentClinicId || null);
 
     // Form States
     const [patientName, setPatientName] = useState('');
@@ -29,6 +29,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
     const [consultationFee, setConsultationFee] = useState('');
     const [consultationDiscountPercent, setConsultationDiscountPercent] = useState('');
     const [consultationDiscountedFee, setConsultationDiscountedFee] = useState('');
+    const [isPayLater, setIsPayLater] = useState(false);
 
     // Pharmacy Cart State
     const [cart, setCart] = useState<{ 
@@ -55,6 +56,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
     const [lastSaleData, setLastSaleData] = useState<any>(null);
     const [lastSaleItems, setLastSaleItems] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [tokenSearch, setTokenSearch] = useState('');
 
     // Mobile Search Dialog
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -137,29 +139,103 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
         }
     }, [view, profile?.hospital_id]);
 
+    const handleTokenSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedClinicId || !tokenSearch) return;
+
+        setIsProcessing(true);
+        try {
+            const tokenNum = parseInt(tokenSearch);
+            if (isNaN(tokenNum)) throw new Error("Invalid token number");
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // 1. Find the consultation sale from today
+            const sales = await db.list('sales', {
+                filters: [
+                    { field: 'clinic_id', operator: '==', value: selectedClinicId },
+                    { field: 'sale_type', operator: '==', value: 'CONSULTATION' },
+                    { field: 'daily_serial_number', operator: '==', value: tokenNum },
+                    { field: 'timestamp', operator: '>=', value: today.toISOString() }
+                ],
+                limit: 1,
+                sort: { column: 'timestamp', ascending: false }
+            });
+
+            if (sales.length === 0) {
+                toast({ title: 'Not Found', description: `No consultation found for token #${tokenSearch} today.`, variant: 'destructive' });
+                return;
+            }
+
+            const sale = sales[0];
+            setDoctorName(sale.doctor_name || '');
+            setPatientName(sale.patient_name || '');
+
+            // 2. Load phone/address from meta_data OR patient record
+            const metaPhone = sale.meta_data?.patient_phone;
+            const metaAddress = sale.meta_data?.patient_address;
+
+            if (metaPhone || metaAddress) {
+                setPatientPhone(metaPhone || '');
+                setPatientAddress(metaAddress || '');
+            } else if (sale.patient_id) {
+                // Fallback to patient record if meta_data is empty
+                const patient = await db.get('patients', sale.patient_id);
+                if (patient) {
+                    setPatientPhone(patient.contact_number || '');
+                    setPatientAddress(patient.address || '');
+                }
+            }
+
+            toast({ title: 'Token Linked', description: `Loaded details for ${sale.patient_name}`, className: 'bg-blue-50 border-blue-200 text-blue-900' });
+            setTokenSearch(''); // Clear search after success
+
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const ensurePatientExists = async (name: string, phone?: string, address?: string) => {
         if (!profile?.hospital_id || !name) return null;
         try {
-            // Check if patient exists by name and phone
-            const existing = await db.list('patients', {
+            // Check if patient exists by name (case-insensitive)
+            // We search by name first to find potential matches even without phone
+            const existingByName = await db.list('patients', {
                 filters: [
                     { field: 'hospital_id', operator: '==', value: profile.hospital_id },
-                    { field: 'full_name', operator: '==', value: name },
-                    ...(phone ? [{ field: 'contact_number', operator: '==', value: phone }] : [])
+                    { field: 'full_name', operator: '==', value: name }
                 ],
-                limit: 1
+                limit: 5
             });
 
-            if (existing.length > 0) {
-                const p = existing[0];
+            let targetPatient = null;
+
+            if (existingByName.length > 0) {
+                // If multiple found, try to find one with matching phone
+                if (phone) {
+                    targetPatient = existingByName.find(p => p.contact_number === phone);
+                }
+                // If still no target, take the first one
+                if (!targetPatient) {
+                    targetPatient = existingByName[0];
+                }
+            }
+
+            if (targetPatient) {
                 // Update if missing phone or address
-                if ((phone && !p.contact_number) || (address && !p.address)) {
-                    await db.update('patients', p.id, {
-                        contact_number: p.contact_number || phone || '',
-                        address: p.address || address || ''
+                const needsUpdate = (phone && (!targetPatient.contact_number || targetPatient.contact_number === '')) || 
+                              (address && (!targetPatient.address || targetPatient.address === ''));
+                
+                if (needsUpdate) {
+                    await db.update('patients', targetPatient.id, {
+                        contact_number: targetPatient.contact_number || phone || '',
+                        address: targetPatient.address || address || ''
                     });
                 }
-                return p.id;
+                return targetPatient.id;
             }
 
             // Create new patient if doesn't exist
@@ -202,7 +278,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
             const pId = await ensurePatientExists(patientName, patientPhone, patientAddress);
             
             // 2. Process sale via RPC
-            const saleId = await db.callRpc('process_sale', {
+            const result = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
                 p_patient_name: patientName,
@@ -214,8 +290,13 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                 p_discount_percentage: discountPercent,
                 p_items: [], // No inventory items for consultation
                 p_admission_id: selectedAdmissionId,
-                p_patient_id: pId // Pass permanent patient ID
+                p_patient_id: pId, // Pass permanent patient ID
+                p_patient_phone: patientPhone,
+                p_patient_address: patientAddress,
+                p_payment_status: isPayLater ? 'pending' : 'paid'
             });
+
+            const { sale_id: saleId, daily_serial_number } = result;
 
             toast({ title: 'Success', description: 'Consultation Recorded.', className: 'bg-green-50 border-green-200 text-green-900' });
 
@@ -229,14 +310,16 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                 subtotal: amount,
                 discount_percentage: discountPercent,
                 payment_mode: paymentMode, 
-                sale_type: 'CONSULTATION' 
+                sale_type: 'CONSULTATION',
+                daily_serial_number,
+                payment_status: isPayLater ? 'pending' : 'paid'
             };
             setLastSaleData(recordedSale);
             setLastSaleItems([{ item_name: 'Consultation Fee', quantity: 1, price: amount }]);
             setIsReceiptOpen(true);
 
             // Reset
-            setPatientName(''); setPatientPhone(''); setPatientAddress(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee('');
+            setPatientName(''); setPatientPhone(''); setPatientAddress(''); setDoctorName(''); setConsultationFee(''); setConsultationDiscountPercent(''); setConsultationDiscountedFee(''); setIsPayLater(false);
 
         } catch (error: any) {
             toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -408,7 +491,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
             const pId = await ensurePatientExists(patientName, patientPhone, patientAddress);
             
             // 2. Process sale via RPC
-            const saleId = await db.callRpc('process_sale', {
+            const result = await db.callRpc('process_sale', {
                 p_hospital_id: profile?.hospital_id,
                 p_clinic_id: selectedClinicId,
                 p_patient_name: patientName,
@@ -420,8 +503,12 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                 p_discount_percentage: discountPercent,
                 p_items: saleItems,
                 p_admission_id: selectedAdmissionId,
-                p_patient_id: pId // Pass permanent patient ID
+                p_patient_id: pId, // Pass permanent patient ID
+                p_patient_phone: patientPhone,
+                p_patient_address: patientAddress
             });
+
+            const { sale_id: saleId } = result;
 
             toast({ title: 'Success', description: 'Pharmacy Checkout Complete.', className: 'bg-green-50 border-green-200 text-green-900' });
 
@@ -489,7 +576,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
 
             // 3. Record Sale (Advance Payment)
             if (advance > 0) {
-                const saleId = await db.callRpc('process_sale', {
+                const result = await db.callRpc('process_sale', {
                     p_hospital_id: hId,
                     p_clinic_id: selectedClinicId,
                     p_patient_name: patientName,
@@ -503,6 +590,8 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                     p_admission_id: admission.id,
                     p_patient_id: registeredPatientId
                 });
+
+                const { sale_id: saleId } = result;
 
                 const recordedSale = { 
                     id: saleId, 
@@ -771,7 +860,17 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                                         </div>
 
                                         <div className="flex flex-col gap-3 pt-2">
-                                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Payment Method</Label>
+                                            <div className="flex items-center justify-between px-1">
+                                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment Method</Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsPayLater(!isPayLater)}
+                                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all border ${isPayLater ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'}`}
+                                                >
+                                                    <span className="material-symbols-outlined text-[16px]">{isPayLater ? 'pending_actions' : 'check_circle'}</span>
+                                                    {isPayLater ? 'PAY LATER (CREDIT)' : 'AUTO-PAID'}
+                                                </button>
+                                            </div>
                                             <div className="flex gap-2 p-1 bg-slate-50 rounded-xl">
                                                 {['Cash', 'UPI', 'Card', ...(selectedAdmissionId ? ['IPD_BILL'] : [])].map((m) => (
                                                     <button key={m} type="button" onClick={() => setPaymentMode(m)} className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${paymentMode === m ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' : 'text-slate-400 hover:text-slate-600'}`}>{m}</button>
@@ -943,42 +1042,57 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                             </div>
 
                             <div className="space-y-2 sm:space-y-3">
-                                <div className="space-y-1">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Link to Admission</Label>
-                                    <div className="relative">
-                                        <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px] z-10">hotel</span>
-                                        <select 
-                                            value={selectedAdmissionId || ''} 
-                                            onChange={e => {
-                                                const admId = e.target.value;
-                                                setSelectedAdmissionId(admId || null);
-                                                if (admId) {
-                                                    const adm = activeAdmissions.find(a => a.id === admId);
-                                                    if (adm) {
-                                                        setPatientName(adm.temp_patient_name || adm.patient?.full_name || '');
-                                                        setPatientPhone(adm.temp_patient_phone || adm.patient?.contact_number || '');
-                                                        setPatientAddress(adm.temp_patient_address || '');
-                                                        // Also try to find and set the doctor name
-                                                        const doc = doctors.find((d: any) => d.id === adm.admitting_doctor_id);
-                                                        if (doc) setDoctorName(doc.full_name);
-                                                        else if (adm.staff_details?.full_name) setDoctorName(adm.staff_details.full_name);
-                                                        setPaymentMode('IPD_BILL');
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Link to Admission</Label>
+                                        <div className="relative">
+                                            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-[18px] z-10">hotel</span>
+                                            <select 
+                                                value={selectedAdmissionId || ''} 
+                                                onChange={e => {
+                                                    const admId = e.target.value;
+                                                    setSelectedAdmissionId(admId || null);
+                                                    if (admId) {
+                                                        const adm = activeAdmissions.find(a => a.id === admId);
+                                                        if (adm) {
+                                                            setPatientName(adm.temp_patient_name || adm.patient?.full_name || '');
+                                                            setPatientPhone(adm.temp_patient_phone || adm.patient?.contact_number || '');
+                                                            setPatientAddress(adm.temp_patient_address || '');
+                                                            const doc = doctors.find((d: any) => d.id === adm.admitting_doctor_id);
+                                                            if (doc) setDoctorName(doc.full_name);
+                                                            else if (adm.staff_details?.full_name) setDoctorName(adm.staff_details.full_name);
+                                                            setPaymentMode('IPD_BILL');
+                                                        }
+                                                    } else {
+                                                        setPaymentMode('Cash');
                                                     }
-                                                } else {
-                                                    setPaymentMode('Cash');
-                                                }
-                                            }}
-                                            className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-lg pl-8 sm:pl-10 pr-6 py-1.5 focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
-                                        >
-                                            <option value="">Individual POS Sale</option>
-                                            {activeAdmissions.map(a => (
-                                                <option key={a.id} value={a.id}>
-                                                    {a.temp_patient_name || a.patient?.full_name} 
-                                                    {a.bed?.ward?.name ? ` (Ward: ${a.bed.ward.name})` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-
+                                                }}
+                                                className="w-full text-[10px] sm:text-xs bg-white border border-slate-200 rounded-lg pl-8 sm:pl-9 pr-6 py-1.5 focus:ring-2 focus:ring-emerald-600 focus:border-transparent appearance-none"
+                                            >
+                                                <option value="">Individual POS</option>
+                                                {activeAdmissions.map(a => (
+                                                    <option key={a.id} value={a.id}>
+                                                        {a.temp_patient_name || a.patient?.full_name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">OPD Token Lookup</Label>
+                                        <form onSubmit={handleTokenSearch} className="relative">
+                                            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-blue-400 text-sm sm:text-[18px] z-10">confirmation_number</span>
+                                            <input
+                                                type="number"
+                                                className="w-full text-[10px] sm:text-xs bg-blue-50/30 border border-blue-100 rounded-lg pl-8 sm:pl-9 pr-8 py-1.5 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all font-bold placeholder:font-normal"
+                                                placeholder="Token #"
+                                                value={tokenSearch}
+                                                onChange={e => setTokenSearch(e.target.value)}
+                                            />
+                                            <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors">
+                                                <span className="material-symbols-outlined text-[16px]">search</span>
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-2">
@@ -1185,6 +1299,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                         </div>
                         <div className="min-w-0">
                             <DialogTitle className="text-xl font-bold text-slate-900 truncate" title={promptItem?.item_name}>{promptItem?.item_name}</DialogTitle>
+                            <DialogDescription className="sr-only">Enter quantity for {promptItem?.item_name}</DialogDescription>
                             <CardDescription className="text-xs font-medium text-slate-500 mt-1">
                                 Batch: <span className="text-slate-700">{promptItem?.batch_number}</span> &bull; Stock: <span className="text-slate-700">{promptItem?.quantity}</span>
                             </CardDescription>
@@ -1266,6 +1381,7 @@ export function POSDashboard({ onNavigate }: { onNavigate?: (view: any) => void 
                 <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden bg-slate-50 border-0 h-[85vh] flex flex-col rounded-t-2xl mt-auto">
                     <div className="p-4 bg-white border-b border-slate-100 flex-shrink-0">
                         <DialogTitle className="text-lg font-bold text-slate-900 mb-3">Search Inventory</DialogTitle>
+                        <DialogDescription className="sr-only">Search clinic inventory for items to add to the cart</DialogDescription>
                         <div className="relative">
                             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                             <input

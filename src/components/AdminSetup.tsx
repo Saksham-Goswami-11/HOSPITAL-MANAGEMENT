@@ -36,6 +36,7 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
 
     const [hospitalName, setHospitalName] = useState('')
     const [hospitalSlug, setHospitalSlug] = useState('')
+    const [hospitalAdminEmail, setHospitalAdminEmail] = useState(userProfile?.email || '')
 
     // Helper to generate a clean slug from name
     const slugify = (text: string) => {
@@ -72,7 +73,8 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
                 p_branding_color: color,
                 p_owner_id: userProfile.id,
                 p_plan_slug: planSlug,
-                p_billing_cycle: selectedBilling
+                p_billing_cycle: selectedBilling,
+                p_admin_email: formData.get('admin_email') as string
             });
 
             // 3. Update Local State & Prepare to Move Next
@@ -162,6 +164,19 @@ export function AdminSetup({ userProfile, onComplete }: { userProfile: any, onCo
                                     onChange={(e) => setHospitalSlug(e.target.value)}
                                 />
                                 <p className="text-xs text-slate-400">Used for URL identification. Must be unique.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Administrative Email</Label>
+                                <Input
+                                    name="admin_email"
+                                    type="email"
+                                    placeholder="admin@hospital.com"
+                                    required
+                                    className="h-12 text-lg"
+                                    value={hospitalAdminEmail}
+                                    onChange={(e) => setHospitalAdminEmail(e.target.value)}
+                                />
+                                <p className="text-xs text-slate-400">Primary contact for billing and verification links.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label>Branding Color</Label>

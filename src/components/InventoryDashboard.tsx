@@ -1158,6 +1158,7 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">Restock Item</DialogTitle>
+                            <DialogDescription className="sr-only">Enter quantity and batch details for restocking</DialogDescription>
                             <p className="sr-only">Form to add quantity and update batch details for an inventory item</p>
                             <p className="text-xs text-slate-500 mt-0.5">Add inventory for <span className="font-bold text-slate-700">{restockItem?.item_name}</span></p>
                         </div>
@@ -1205,6 +1206,7 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">Edit Inventory Record</DialogTitle>
+                            <DialogDescription className="sr-only">Modify existing inventory item details</DialogDescription>
                             <p className="sr-only">Form to modify existing inventory details including stock levels and batch information</p>
                             <p className="text-xs text-slate-500 mt-0.5">Modify stock counts and item details manually</p>
                         </div>
@@ -1326,6 +1328,7 @@ export function InventoryDashboard({ clinicIdOverride, onNavigate }: InventoryDa
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>Export Historical Snapshot</DialogTitle>
+                        <DialogDescription className="sr-only">Select a date to export the inventory state as it was on that day</DialogDescription>
                         <DialogDescription>
                             Select a date to generate a filterable Excel report of your inventory as it existed on that day.
                         </DialogDescription>

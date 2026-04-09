@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Building2, Shield, Settings2, Bell, Receipt, Clock, Plug, Crown, Package } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { SubscriptionDashboard } from '@/components/billing'
+import { WhatsAppSettings } from '@/components/WhatsAppSettings'
+import { Smartphone } from 'lucide-react'
 
 export function SettingsDashboard() {
     const {
@@ -181,6 +183,9 @@ export function SettingsDashboard() {
                             </TabsTrigger>
                             <TabsTrigger value="subscription" className="justify-start gap-2 data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700 data-[state=active]:shadow-sm border border-transparent">
                                 <Crown className="w-4 h-4" /> Subscription & Billing
+                            </TabsTrigger>
+                            <TabsTrigger value="whatsapp" className="justify-start gap-2 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm border border-transparent">
+                                <Smartphone className="w-4 h-4" /> WhatsApp Bot
                             </TabsTrigger>
                         </>
                     )}
@@ -381,6 +386,10 @@ export function SettingsDashboard() {
 
                             <TabsContent value="subscription" className="m-0 p-6 md:p-8 animation-in fade-in slide-in-from-bottom-2">
                                 <SubscriptionDashboard />
+                            </TabsContent>
+
+                            <TabsContent value="whatsapp" className="m-0 p-6 md:p-8 animation-in fade-in slide-in-from-bottom-2">
+                                <WhatsAppSettings hospitalId={hospital?.id || ''} />
                             </TabsContent>
                         </>
                     )}

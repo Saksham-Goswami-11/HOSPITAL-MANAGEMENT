@@ -204,7 +204,11 @@ function AppContent() {
             // 2b. Hospital Admin — allow all their sidebar views
             else if (['ADMIN', 'HOSPITAL_ADMIN'].includes(profile.role)) {
                 const hospitalAdminViews: View[] = ['admin', 'inventory-dashboard', 'staff', 'shift-management', 'earnings', 'billing', 'procurement', 'expenses', 'equipments', 'ipd', 'ca-suite', 'settings', 'setup', 'pos', 'attendance', 'medicine-migration'];
-                if (!hospitalAdminViews.includes(view)) {
+                
+                // Force 'admin' if starting (selection) OR in POS without a clinic context
+                if (view === 'selection' || (view === 'pos' && !selectedClinicId)) {
+                    setView('admin');
+                } else if (!hospitalAdminViews.includes(view)) {
                     setView('admin');
                 }
             }
@@ -297,7 +301,7 @@ function AppContent() {
 
                     {/* POS/BILLING DASHBOARD */}
                     {view === 'pos' && (
-                        <POSDashboard onNavigate={setView} />
+                        <POSDashboard currentClinicId={selectedClinicId || undefined} onNavigate={setView} />
                     )}
 
                     {/* PROCUREMENT DASHBOARD */}

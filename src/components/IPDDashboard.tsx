@@ -281,6 +281,7 @@ export function IPDDashboard() {
                     p_items: [],
                     p_admission_id: admission.id
                 });
+                // No token for IPD advance
             }
 
             await db.update('beds', bed_id, { status: 'occupied' });
@@ -499,7 +500,7 @@ export function IPDDashboard() {
             }
 
             // Create the Master Sale record for Discharge
-            const saleId = await db.callRpc('process_sale', {
+            const result = await db.callRpc('process_sale', {
                 p_hospital_id: hospital.id,
                 p_clinic_id: selectedAdmission.clinic_id || (selectedClinicId !== 'all' ? selectedClinicId : clinics[0]?.id) || hospital.id, 
                 p_patient_name: selectedAdmission.patient?.full_name || selectedAdmission.temp_patient_name || 'Walking Patient',
@@ -513,6 +514,8 @@ export function IPDDashboard() {
                 p_admission_id: selectedAdmission.id,
                 p_patient_id: selectedAdmission.patient_id
             });
+
+            const { sale_id: saleId } = result;
 
             // Create breakdown items for the receipt
             const itemsToInsert = [
@@ -768,8 +771,8 @@ export function IPDDashboard() {
                                                         </div>
                                                         {adm.patient?.id && adm.patient.id !== 'temp' ? (
                                                             <div className="flex flex-col">
-                                                                <div className="text-xs text-slate-400 font-medium">UID: {adm.patient.id.substring(0,8).toUpperCase()}</div>
-                                                                <div className="text-xs text-emerald-600 font-mono font-bold mt-0.5">{adm.patient.contact_number}</div>
+                                                                <div className="text-xs text-slate-400 font-bold">UID: {(adm.patient?.id || '').substring(0,8).toUpperCase()}</div>
+                                                                <div className="text-xs text-emerald-600 font-mono font-bold mt-0.5">{adm.patient?.contact_number}</div>
                                                             </div>
                                                         ) : (
                                                             <div className="flex flex-col mt-0.5">
@@ -982,6 +985,9 @@ export function IPDDashboard() {
                 <DialogContent className="sm:max-w-[500px]">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black">Indoor Admission Flow</DialogTitle>
+                        <DialogDescription>
+                            Register a new patient or select an existing one to begin the admission process.
+                        </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddAdmission} className="space-y-4 mt-4">
                         <div className="space-y-2">
@@ -1078,7 +1084,12 @@ export function IPDDashboard() {
 
             <Dialog open={isWardModalOpen} onOpenChange={setIsWardModalOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Create New Ward</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Create New Ward</DialogTitle>
+                        <DialogDescription>
+                            Set up a new ward wing or department in your hospital.
+                        </DialogDescription>
+                    </DialogHeader>
                     <form onSubmit={handleAddWard} className="space-y-4">
                         <div className="space-y-2">
                             <Label className="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Assign to Branch</Label>
@@ -1124,7 +1135,12 @@ export function IPDDashboard() {
 
             <Dialog open={isBedModalOpen} onOpenChange={setIsBedModalOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Add Bed to Ward</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Add Bed to Ward</DialogTitle>
+                        <DialogDescription>
+                            Define individual or multiple bed units for a specific ward.
+                        </DialogDescription>
+                    </DialogHeader>
                     <form onSubmit={handleAddBed} className="space-y-4">
                         <div className="space-y-2">
                             <Label>Select Ward</Label>
@@ -1207,7 +1223,7 @@ export function IPDDashboard() {
                                     </div>
                                     <div>
                                         <h2 className="text-4xl font-black text-slate-900 tracking-tight">Bill Summary</h2>
-                                        <p className="text-slate-500 font-medium">Patient Details & Financial Breakdown</p>
+                                        <DialogDescription className="text-slate-500 font-medium">Patient Details & Financial Breakdown</DialogDescription>
                                     </div>
                                     <div className="flex flex-wrap gap-4 pt-2">
                                         <div className="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100">
@@ -1216,7 +1232,7 @@ export function IPDDashboard() {
                                         </div>
                                         <div className="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admission ID</p>
-                                            <p className="font-bold text-slate-800">#{billAdmission.id.slice(0, 8)}</p>
+                                            <p className="font-bold text-slate-800">#{(billAdmission.id || '').toString().slice(0, 8)}</p>
                                         </div>
                                         <div className="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Doctor</p>
@@ -1322,7 +1338,7 @@ export function IPDDashboard() {
                                                                                     <td className="px-6 py-4">
                                                                                         <div className="flex flex-col">
                                                                                             <span className="font-bold text-slate-800">{item.item_name || 'Medicine'}</span>
-                                                                                            <span className="text-[10px] text-slate-400 font-medium italic">Sale ID: {sale.id.slice(0, 6)}</span>
+                                                                                            <span className="text-[10px] text-slate-400 font-medium italic">Sale ID: {(sale.id || '').toString().slice(0, 6)}</span>
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="px-6 py-4 text-center font-bold text-slate-900">{item.quantity} units</td>
@@ -1434,7 +1450,12 @@ export function IPDDashboard() {
 
             <Dialog open={isPatientModalOpen} onOpenChange={setIsPatientModalOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Quick Patient Registration</DialogTitle></DialogHeader>
+                    <DialogHeader>
+                        <DialogTitle>Quick Patient Registration</DialogTitle>
+                        <DialogDescription>
+                            Enter patient demographics to create a new medical record.
+                        </DialogDescription>
+                    </DialogHeader>
                     <form onSubmit={handleRegisterPatient} className="space-y-4">
                         <div className="space-y-2">
                             <Label>Full Name</Label>
@@ -1537,7 +1558,7 @@ export function IPDDashboard() {
                                         <div key={s.id} className="flex justify-between items-center p-3 text-sm bg-emerald-50/30 border-b border-emerald-100/50 last:border-0 border-dashed">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-emerald-800 flex items-center gap-1">
-                                                    <span className="material-symbols-outlined text-[16px]">receipt_long</span> Pharmacy Receipt #{s.id?.slice(-6).toUpperCase()}
+                                                    <span className="material-symbols-outlined text-[16px]">receipt_long</span> Pharmacy Receipt #{(s.id || '').toString().slice(-6).toUpperCase()}
                                                 </span>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${s.payment_mode === 'IPD_BILL' ? 'bg-emerald-100/50 text-emerald-700' : 'bg-blue-100/50 text-blue-700'}`}>

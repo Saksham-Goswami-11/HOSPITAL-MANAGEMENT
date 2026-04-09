@@ -1,0 +1,16 @@
+{
+  "name": "whatsapp-gateway",
+  "version": "1.0.0",
+  "description": "Local WhatsApp Gateway for MedFlow",
+  "main": "whatsapp-gateway.js",
+  "scripts": {
+    "start": "node whatsapp-gateway.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "author": "MedFlow",
+  "license": "MIT"
+}

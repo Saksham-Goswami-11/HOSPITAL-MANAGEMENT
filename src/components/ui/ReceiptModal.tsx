@@ -58,9 +58,17 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
                             <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-widest rounded-md border border-blue-100">
                                 Official Invoice
                             </div>
-                            <div className="space-y-0.5">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receipt Number</p>
-                                <p className="font-mono text-sm font-semibold text-slate-900">#{sale?.id ? sale.id.slice(0, 8).toUpperCase() : 'PENDING'}</p>
+                            <div className="flex gap-4">
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receipt Number</p>
+                                    <p className="font-mono text-sm font-semibold text-slate-900">#{sale?.id ? sale.id.slice(0, 8).toUpperCase() : 'PENDING'}</p>
+                                </div>
+                                {sale?.daily_serial_number && (
+                                    <div className="space-y-0.5 text-right">
+                                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Token No</p>
+                                        <p className="text-lg font-black text-blue-700 leading-none">#{sale.daily_serial_number}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -77,17 +85,26 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
                                     </p>
                                 )}
                             </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Mode</p>
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
-                                    sale?.payment_mode === 'IPD_BILL' 
-                                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
-                                    : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${sale?.payment_mode === 'IPD_BILL' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
-                                    {sale?.payment_mode === 'IPD_BILL' ? 'Added to IPD Bill' : (sale?.payment_mode || 'Cash')}
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status & Mode</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                                            sale?.payment_status === 'pending'
+                                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                            : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                        }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${sale?.payment_status === 'pending' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                            {sale?.payment_status === 'pending' ? 'Pending Payment' : 'Paid / Confirmed'}
+                                        </div>
+                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
+                                            sale?.payment_mode === 'IPD_BILL' 
+                                            ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
+                                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                        }`}>
+                                            {sale?.payment_mode === 'IPD_BILL' ? 'Added to IPD Bill' : (sale?.payment_mode || 'Cash')}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
                         </div>
 
                         <div className="space-y-4 text-right">
@@ -167,10 +184,10 @@ export function ReceiptModal({ open, onClose, sale, items }: { open: boolean, on
                             <div className="flex justify-between items-end border-t-2 border-slate-900 pt-3 pb-1">
                                 <div className="space-y-0.5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        {sale?.payment_mode === 'IPD_BILL' ? 'Amount Charged to Bill' : 'Net Amount Paid'}
+                                        {sale?.payment_status === 'pending' ? 'Credit Amount Due' : sale?.payment_mode === 'IPD_BILL' ? 'Amount Charged to Bill' : 'Net Amount Paid'}
                                     </p>
                                     <p className="text-xl font-black text-slate-900">
-                                        {sale?.payment_mode === 'IPD_BILL' ? 'TOTAL CHARGED' : 'TOTAL'}
+                                        {sale?.payment_status === 'pending' ? 'BALANCE DUE' : sale?.payment_mode === 'IPD_BILL' ? 'TOTAL CHARGED' : 'TOTAL'}
                                     </p>
                                 </div>
                                 <span className="text-2xl font-black text-blue-600">

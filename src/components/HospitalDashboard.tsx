@@ -275,6 +275,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                         <DialogContent className="sm:max-w-[500px] bg-slate-950/95 backdrop-blur-2xl border-slate-800 text-slate-50 shadow-2xl p-6 gap-6">
                             <DialogHeader>
                                 <DialogTitle className="text-xl font-bold text-white tracking-tight">Register New Clinic</DialogTitle>
+                                <DialogDescription className="text-blue-100 text-xs">Enter detail to onboard a new clinic to your hospital network.</DialogDescription>
                                 <DialogDescription className="text-slate-400">
                                     Create a new clinic hub and assign a primary staff member.
                                 </DialogDescription>
@@ -355,6 +356,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                     <DialogContent className="sm:max-w-[450px] bg-white border-slate-200">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-bold text-slate-900">Revenue Breakdown</DialogTitle>
+                            <DialogDescription className="sr-only">Detailed breakdown of revenue by clinic and category</DialogDescription>
                             <DialogDescription>Daily earnings across all connected clinics.</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
@@ -418,6 +420,7 @@ export function HospitalDashboard({ onSelectClinic }: HospitalDashboardProps) {
                     <DialogContent className="sm:max-w-[400px] bg-white border-slate-200">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-bold text-slate-900">Clinic Excellence</DialogTitle>
+                            <DialogDescription className="sr-only">Performance metrics and excellence rating for clinics</DialogDescription>
                             <DialogDescription>Performance details for {topClinic.clinic_name}</DialogDescription>
                         </DialogHeader>
                         <div className="py-6 space-y-6 text-center">
