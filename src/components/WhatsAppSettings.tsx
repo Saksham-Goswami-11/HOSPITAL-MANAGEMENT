@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, Input, Label } from '@/components/ui/basic'
 import { Smartphone, ShieldCheck, Zap, Copy, Download, RefreshCw, Key } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
