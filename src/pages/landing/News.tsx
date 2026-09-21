@@ -25,10 +25,12 @@ const News: React.FC = () => {
         })
       });
 
-      if (response.ok) {
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success !== 'false' && data?.success !== false) {
         setSubStatus('success');
         setSubEmail('');
       } else {
+        console.error("Subscription rejected:", data);
         setSubStatus('error');
       }
     } catch (error) {

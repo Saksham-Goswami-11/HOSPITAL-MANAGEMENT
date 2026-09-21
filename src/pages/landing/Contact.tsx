@@ -34,9 +34,11 @@ const Contact: React.FC = () => {
         })
       });
 
-      if (response.ok) {
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success !== 'false' && data?.success !== false) {
         setFormState('success');
       } else {
+        console.error("Form submission rejected:", data);
         setFormState('error');
       }
     } catch (error) {
